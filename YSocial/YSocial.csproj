@@ -6,4 +6,10 @@
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
+    <ItemGroup>
+      <None Update="Components\Pages\Login.css">
+        <DependentUpon>Login.razor</DependentUpon>
+      </None>
+    </ItemGroup>
+
 </Project>
