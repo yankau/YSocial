@@ -1,0 +1,73 @@
+@page "/login"
+@using YSocial.Components.Models
+
+<h3>Login</h3>
+<EditForm Model="loginModel" OnValidSubmit="LoginAsync">
+    <DataAnnotationsValidator />
+    <div class="container mt-5 d-flex justify-content-center">
+        <div class="card" style="width: 450px">
+            <div class="card-header">
+                <h2>Login</h2>
+            </div>
+            // форма Username
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Username</label>
+                    <InputText @bind-Value="loginModel.Username" class="form-control" placeholder="Enter username" />
+                    <ValidationMessage For="()=> loginModel.Username" />
+                </div>
+                // форма Password
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <InputText type="password" @bind-Value="loginModel.Password" class="form-control" placeholder="Enter password" />
+                    <ValidationMessage For="()=> loginModel.Password" />
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(error))
+                {
+                    <p class="text-danger">@error</p>
+                }
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-success btn-sm">Login</button>
+            </div>
+        </div>
+    </div>
+</EditForm>
+@code {
+    private LoginModel loginModel = new();
+    private string? error = null;
+    private bool isProcessing = false;
+    private async Task LoginAsync()
+    {
+        error = null;
+        isProcessing = true;
+        try
+        {
+            error = await BlogAuthStateProvider.LoginAsync(loginModel);
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                isProcessing = false;
+            }
+            else
+            {
+                var loggedInUser = BlogAuthStateProvider.LoggedInUser;
+                if (loggedInUser.IsEmpty)
+                {
+                    error = "Could not log in. Please try again";
+                    isProcessing = false;
+                }
+                else
+                {
+                    // Successful login
+                    NavigationManager.NavigateTo("/");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            isProcessing = false;
+            error = ex.Message;
+        }
+    }
+}
