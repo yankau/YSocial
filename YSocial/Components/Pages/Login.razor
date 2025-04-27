@@ -1,7 +1,16 @@
 @page "/login"
 @using YSocial.Components.Models
 
-<h3>Login</h3>
+@inject NavigationManager NavigationManager
+
+@if (isProcessing)
+{
+    <div class="overlay position-fixed"></div>
+    <div class="loading-wrapper position-fixed d-flex justify-content-center align-items-center">
+        <div class="loading-text fs-1 text-white">Logging-in...</div>
+    </div>
+}
+
 <EditForm Model="loginModel" OnValidSubmit="LoginAsync">
     <DataAnnotationsValidator />
     <div class="container mt-5 d-flex justify-content-center">
