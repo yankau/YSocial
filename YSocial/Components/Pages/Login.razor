@@ -11,21 +11,21 @@
     </div>
 }
 
-<EditForm Model="loginModel" OnValidSubmit="LoginAsync">
+<EditForm Model="loginModel" OnValidSubmit="LoginAsync" FormName="LoginForm">
     <DataAnnotationsValidator />
     <div class="container mt-5 d-flex justify-content-center">
         <div class="card" style="width: 450px">
             <div class="card-header">
                 <h2>Login</h2>
             </div>
-            // форма Username
+         
             <div class="card-body">
                 <div class="mb-3">
                     <label class="form-label">Username</label>
                     <InputText @bind-Value="loginModel.Username" class="form-control" placeholder="Enter username" />
                     <ValidationMessage For="()=> loginModel.Username" />
                 </div>
-                // форма Password
+              
                 <div class="mb-3">
                     <label class="form-label">Password</label>
                     <InputText type="password" @bind-Value="loginModel.Password" class="form-control" placeholder="Enter password" />
@@ -43,6 +43,7 @@
         </div>
     </div>
 </EditForm>
+
 @code {
     private LoginModel loginModel = new();
     private string? error = null;

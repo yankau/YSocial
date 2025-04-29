@@ -4,9 +4,9 @@ namespace YSocial.Components.Models;
 
 public class LoginModel
 {
-   // [Required, EmailAddress, DataType(DataType.EmailAddress)]
+   [Required(AllowEmptyStrings = false, ErrorMessage = "Username is required")]
     public string Username { get; set; }
     
-    [Required, MinLength(8)]
+    [Required(AllowEmptyStrings = false, ErrorMessage = "Password is required"), MinLength(8)]
     public string Password { get; set; }
 }
