@@ -45,7 +45,7 @@
 </EditForm>
 
 @code {
-    private LoginModel loginModel = new();
+    private LoginModel loginModel { get; set; }= new();
     private string? error = null;
     private bool isProcessing = false;
     private async Task LoginAsync()
