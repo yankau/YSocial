@@ -2,6 +2,7 @@ using System.Net.Sockets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using YSocial.Components;
+using YSocial.Components.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 

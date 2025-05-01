@@ -1,83 +1,93 @@
 @page "/login"
 @using YSocial.Components.Models
-
+@inject AppDbContext appDbContext
 @inject NavigationManager NavigationManager
 
-@if (isProcessing)
-{
-    <div class="overlay position-fixed"></div>
-    <div class="loading-wrapper position-fixed d-flex justify-content-center align-items-center">
-        <div class="loading-text fs-1 text-white">Logging-in...</div>
-    </div>
-}
-
-<EditForm Model="loginModel" OnValidSubmit="LoginAsync" FormName="LoginForm">
-    <DataAnnotationsValidator />
-    <div class="container mt-5 d-flex justify-content-center">
-        <div class="card" style="width: 450px">
-            <div class="card-header">
-                <h2>Login</h2>
-            </div>
-         
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Username</label>
-                    <InputText @bind-Value="loginModel.Username" class="form-control" placeholder="Enter username" />
-                    <ValidationMessage For="()=> loginModel.Username" />
+<div class="row justify-content-center pt-4 pb-4">
+    <div class="col-lg-4">
+        <EditForm Model="loginModel" OnValidSubmit="Authenticate" FormName="LoginForm">
+            <DataAnnotationsValidator />
+            
+            <div class="card bg-dark text-light" style="width: 450px; margin: 0 auto; background-color: #2c2c2c">
+                <div class="card-header" style="background-color: #1a1a1a">
+                    <h2 class="mb-0">Login</h2>
                 </div>
-              
-                <div class="mb-3">
-                    <label class="form-label">Password</label>
-                    <InputText type="password" @bind-Value="loginModel.Password" class="form-control" placeholder="Enter password" />
-                    <ValidationMessage For="()=> loginModel.Password" />
-                </div>
+             
+                <div class="card-body" style="background-color: #1a1a1a">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <InputText @bind-Value="loginModel.Username" class="form-control bg-secondary border-dark text-light" placeholder="Enter username" />
+                        <ValidationMessage For="()=> loginModel.Username" />
+                    </div>
+                  
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <InputText type="password" @bind-Value="loginModel.Password" class="form-control bg-secondary border-dark text-light" placeholder="Enter password" />
+                        <ValidationMessage For="()=> loginModel.Password" />
+                    </div>
 
-                @if (!string.IsNullOrWhiteSpace(error))
-                {
-                    <p class="text-danger">@error</p>
-                }
+                    @if (!string.IsNullOrWhiteSpace(errorMessage))
+                    {
+                        <p class="text-danger">@errorMessage</p>
+                    }
+                </div>
+                <div class="card-footer" style="background-color: #1a1a1a">
+                    <button type="submit" class="btn btn-sm w-100" style="background-color: #967bb6; color: white; border: none">Login</button>
+                </div>
             </div>
-            <div class="card-footer">
-                <button type="submit" class="btn btn-success btn-sm">Login</button>
-            </div>
-        </div>
+        </EditForm>
     </div>
-</EditForm>
+</div>
 
 @code {
+    [CascadingParameter]
+    public HttpContent? HttpContent { get; set; } 
+    
+    [SupplyParameterFromForm]    
     private LoginModel loginModel { get; set; }= new();
-    private string? error = null;
-    private bool isProcessing = false;
-    private async Task LoginAsync()
-    {
-        error = null;
-        isProcessing = true;
-        try
-        {
-            error = await BlogAuthStateProvider.LoginAsync(loginModel);
-            if (!string.IsNullOrWhiteSpace(error))
-            {
-                isProcessing = false;
-            }
-            else
-            {
-                var loggedInUser = BlogAuthStateProvider.LoggedInUser;
-                if (loggedInUser.IsEmpty)
-                {
-                    error = "Could not log in. Please try again";
-                    isProcessing = false;
-                }
-                else
-                {
-                    // Successful login
-                    NavigationManager.NavigateTo("/");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            isProcessing = false;
-            error = ex.Message;
-        }
+    
+    private string? errorMessage = null;
+    
+
+   private async Task Authenticate()
+   {
+       // исправлено
+       var userAccount = appDbContext.UserAccounts.FirstOrDefault(x => x.Username == loginModel.Username);
+       if (userAccount is null || userAccount.Password != loginModel.Password)
+       {
+           errorMessage = "invalid username or passsword";
+           return;
+       }
+       NavigationManager.NavigateTo("/");
+
+    // error = null;
+    // isProcessing = true;
+        // try
+        // {
+        //     error = await BlogAuthStateProvider.LoginAsync(loginModel);
+        //     if (!string.IsNullOrWhiteSpace(error))
+        //     {
+        //         isProcessing = false;
+        //     }
+        //     else
+        //     {
+        //         var loggedInUser = BlogAuthStateProvider.LoggedInUser;
+        //         if (loggedInUser.IsEmpty)
+        //         {
+        //             error = "Could not log in. Please try again";
+        //             isProcessing = false;
+        //         }
+        //         else
+        //         {
+        //             // Successful login
+        //             NavigationManager.NavigateTo("/");
+        //         }
+        //     }
+        // }
+        // catch (Exception ex)
+        // {
+        //     isProcessing = false;
+        //     error = ex.Message;
+        // }
     }
 }
