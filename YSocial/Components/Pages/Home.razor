@@ -1,7 +1,28 @@
 ﻿@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
 
-<PageTitle>Home</PageTitle>
+@if (isAuthenticated)
+{
+    <RedirectToProfile />
+}
+else
+{
+    <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
+    <div class="home-content">
+        <h1>Hello, world!</h1>
+        <p>Welcome to your new app.</p>
+    </div>
+}
 
-Welcome to your new app.
+@code {
+    private bool isAuthenticated = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+    }
+}

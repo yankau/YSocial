@@ -1,7 +1,10 @@
 @page "/login"
+@using Microsoft.AspNetCore.Components.Authorization
 @using YSocial.Components.Models
 @inject AppDbContext appDbContext
 @inject NavigationManager NavigationManager
+@inject AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
 
 <div class="row justify-content-center pt-4 pb-4">
     <div class="col-lg-4">
@@ -30,9 +33,31 @@
                     {
                         <p class="text-danger">@errorMessage</p>
                     }
+
+                    @if (showUserInfo)
+                    {
+                        <div class="user-info mt-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <img src="@(string.IsNullOrEmpty(currentUserAvatar) ? "/images/default-avatar.png" : currentUserAvatar)" 
+                                     class="avatar-preview rounded-circle me-2" 
+                                     style="width: 40px; height: 40px; object-fit: cover" 
+                                     alt="User avatar" />
+                                <span>@loginModel.Username</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(currentUserDescription))
+                            {
+                                <div class="user-description small text-muted">
+                                    @currentUserDescription
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
                 <div class="card-footer" style="background-color: #1a1a1a">
-                    <button type="submit" class="btn btn-sm w-100" style="background-color: #967bb6; color: white; border: none">Login</button>
+                    <button type="submit" class="btn btn-sm w-100" style="background-color: #967bb6; color: white; border: none">Sign in</button>
+                </div>
+                <div class="text-center mt-2">
+                    <a href="/register" class="text-white">Don't have an account? Register</a>
                 </div>
             </div>
         </EditForm>
@@ -44,50 +69,82 @@
     public HttpContent? HttpContent { get; set; } 
     
     [SupplyParameterFromForm]    
-    private LoginModel loginModel { get; set; }= new();
+    private LoginModel loginModel { get; set; } = new();
     
     private string? errorMessage = null;
+    private bool showUserInfo = false;
+    private string currentUserAvatar = string.Empty;
+    private string currentUserDescription = string.Empty;
+
+    private async Task Authenticate()
+    {
+        errorMessage = null;
+        showUserInfo = false;
+
+        var userAccount = await appDbContext.UserAccounts
+            .Select(u => new {
+                u.Username,
+                u.Password,
+                u.AvatarUrl,
+                u.Description
+            })
+            .FirstOrDefaultAsync(x => x.Username == loginModel.Username);
     
+        if (userAccount == null)
+        {
+            errorMessage = "Invalid username or password";
+            return;
+        }
 
-   private async Task Authenticate()
-   {
-       // исправлено
-       var userAccount = appDbContext.UserAccounts.FirstOrDefault(x => x.Username == loginModel.Username);
-       if (userAccount is null || userAccount.Password != loginModel.Password)
-       {
-           errorMessage = "invalid username or passsword";
-           return;
-       }
-       NavigationManager.NavigateTo("/");
+        // Показываем информацию о пользователе перед входом
+        showUserInfo = true;
+        currentUserAvatar = userAccount.AvatarUrl ?? string.Empty;
+        currentUserDescription = userAccount.Description ?? string.Empty;
+        StateHasChanged();
 
-    // error = null;
-    // isProcessing = true;
-        // try
-        // {
-        //     error = await BlogAuthStateProvider.LoginAsync(loginModel);
-        //     if (!string.IsNullOrWhiteSpace(error))
-        //     {
-        //         isProcessing = false;
-        //     }
-        //     else
-        //     {
-        //         var loggedInUser = BlogAuthStateProvider.LoggedInUser;
-        //         if (loggedInUser.IsEmpty)
-        //         {
-        //             error = "Could not log in. Please try again";
-        //             isProcessing = false;
-        //         }
-        //         else
-        //         {
-        //             // Successful login
-        //             NavigationManager.NavigateTo("/");
-        //         }
-        //     }
-        // }
-        // catch (Exception ex)
-        // {
-        //     isProcessing = false;
-        //     error = ex.Message;
-        // }
+        if (userAccount.Password != Cryptography.Sha256Hash(loginModel.Password))
+        {
+            errorMessage = "Invalid password";
+            return;
+        }
+        
+        // Используем AuthService для входа
+        var authResult = await AuthService.LoginAsync(loginModel.Username, loginModel.Password);
+        
+        if (authResult)
+        {
+            ((CustomAuthStateProvider)AuthStateProvider).SetAuthenticatedUser(loginModel.Username);
+            NavigationManager.NavigateTo("/", forceLoad: true);
+        }
+        else
+        {
+            errorMessage = "Login failed";
+        }
+    }
+
+    private async Task OnUsernameChanged()
+    {
+        if (!string.IsNullOrEmpty(loginModel.Username))
+        {
+            var userAccount = await appDbContext.UserAccounts
+                .Where(u => u.Username == loginModel.Username)
+                .Select(u => new { u.AvatarUrl, u.Description })
+                .FirstOrDefaultAsync();
+
+            if (userAccount != null)
+            {
+                showUserInfo = true;
+                currentUserAvatar = userAccount.AvatarUrl ?? string.Empty;
+                currentUserDescription = userAccount.Description ?? string.Empty;
+            }
+            else
+            {
+                showUserInfo = false;
+            }
+        }
+        else
+        {
+            showUserInfo = false;
+        }
     }
 }

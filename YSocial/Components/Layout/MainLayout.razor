@@ -1,12 +1,74 @@
-﻿@inherits LayoutComponentBase
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@inherits LayoutComponentBase
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<style>
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: black;
+        color: white;
+    }
+
+    .page {
+        background-color: black;
+        color: white;
+    }
+
+    .top-row {
+        background-color: #111;
+        padding: 1rem;
+    }
+
+    .auth-buttons {
+        margin-left: auto;
+        display: flex;
+        gap: 1rem;
+    }
+
+    .auth-buttons a {
+        color: white;
+        text-decoration: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        transition: background-color 0.3s;
+    }
+
+    .auth-buttons a:hover {
+        text-decoration: none;
+        background-color: #2a2a2a;
+    }
+
+    .auth-button {
+        background-color: #1a1a1a;
+    }
+
+    .profile-button {
+        background-color: transparent;
+    }
+</style>
+
 <div class="page">
     <div class="sidebar">
-        <NavMenu/>
+        <NavMenu />
     </div>
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <div class="auth-buttons">
+                @if (isAuthenticated)
+                {
+                    <a href="/profile" class="profile-button">Профиль</a>
+                    <a href="#" class="profile-button" @onclick="Logout">Выйти</a>
+                }
+                else
+                {
+                    <a href="/login" class="auth-button">Sign In</a>
+                    <a href="/register" class="auth-button">Sign Up</a>
+                }
+            </div>
         </div>
 
         <article class="content px-4">
@@ -15,8 +77,21 @@
     </main>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+@code {
+    private bool isAuthenticated = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+    }
+    
+    private async Task Logout()
+    {
+        if (AuthStateProvider is CustomAuthStateProvider customProvider)
+        {
+            await customProvider.SetUnauthenticatedUser();
+            Navigation.NavigateTo("/login", forceLoad: true);
+        }
+    }
+}

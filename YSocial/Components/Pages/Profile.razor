@@ -1,0 +1,104 @@
+@page "/profile"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YSocial.Components.Models
+@inject AuthenticationStateProvider AuthStateProvider
+@inject AppDbContext DbContext
+@inject NavigationManager Navigation
+@inject IWebHostEnvironment Env
+
+<PageTitle>Profile</PageTitle>
+
+@if (!isAuthenticated && !isLoading)
+{
+    <div class="unauthorized-container">
+        <p>Please sign in to view your profile</p>
+        <a href="/login" class="login-button">Sign In</a>
+    </div>
+}
+else if (isLoading)
+{
+    <div class="loading-container">Loading profile...</div>
+}
+else
+{
+    <div class="profile-layout">
+        <div class="profile-header">
+            <img class="profile-avatar" src="@GetAvatarUrl()" alt="Profile Avatar" />
+            <h1 class="username">@user.Username</h1>
+            <p class="description">@(string.IsNullOrEmpty(user.Description) ? "No description yet" : user.Description)</p>
+        </div>
+
+        <div class="settings-button">
+            <img src="/images/gear-icon.png" alt="Settings" @onclick="ToggleSettings" />
+            @if (showSettings)
+            {
+                <div class="settings-dropdown">
+                    <button @onclick="@(() => ShowModal("username"))">Change Username</button>
+                    <button @onclick="OpenAvatarUpload">Change Avatar</button>
+                    <button @onclick="@(() => ShowModal("description"))">Change Description</button>
+                    <button @onclick="@(() => ShowModal("password"))">Change Password</button>
+                    <button @onclick="Logout" class="logout-button">Logout</button>
+                </div>
+            }
+        </div>
+
+        <div class="posts-section">
+            <h3>Recent Posts</h3>
+            @if (recentPosts.Any())
+            {
+                <div class="posts-list">
+                    @foreach (var post in recentPosts.OrderByDescending(p => p.CreatedAt))
+                    {
+                        <div class="post-item">
+                            <p>@post.Content</p>
+                            @if (!string.IsNullOrEmpty(post.ImageUrls))
+                            {
+                                @foreach (var imageUrl in post.ImageUrls.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                {
+                                    <img src="@imageUrl.Trim()" alt="Post Image" class="post-image" />
+                                }
+                            }
+                            <span>@post.CreatedAt.ToString("MMM dd, yyyy")</span>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p>No posts yet</p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private UserAccount user = new();
+    private bool isLoading = true;
+    private bool isAuthenticated = false;
+    private bool showSettings = false;
+    private List<Post> recentPosts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+
+        if (isAuthenticated)
+        {
+            var username = authState.User.Identity.Name;
+            user = await DbContext.UserAccounts.Include(u => u.Posts).FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
+            recentPosts = user.Posts.ToList();
+        }
+
+        isLoading = false;
+    }
+
+    private string GetAvatarUrl() => string.IsNullOrEmpty(user.AvatarUrl) ? "/images/default-avatar.png" : user.AvatarUrl;
+
+    private void ToggleSettings() => showSettings = !showSettings;
+
+    private void OpenAvatarUpload() {}
+    private void ShowModal(string type) {}
+    private void Logout() {}
+}

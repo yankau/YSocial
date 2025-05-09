@@ -1,29 +1,87 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YSocial.Components.Models
+@inject AuthenticationStateProvider AuthStateProvider
+@inject AppDbContext DbContext
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">YSocial</a>
     </div>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler"/>
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+<div class="nav-scrollable">
     <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
+        <div class="nav-item px-3 profile-nav-item">
+            @if (isAuthenticated)
+            {
+                <NavLink class="profile-nav-content" href="/profile">
+                    <img class="nav-avatar"
+                         src="@(user?.AvatarUrl ?? "/images/default-avatar.png")"
+                         alt="Profile" />
+                    <span class="nav-link-text">@user?.Username</span>
+                </NavLink>
+            }
+            else
+            {
+                <NavLink class="profile-nav-content" href="/login">
+                    <div class="nav-avatar default-avatar"></div>
+                    <span class="nav-link-text">Profile</span>
+                </NavLink>
+            }
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
+        <!-- Остальные пункты меню -->
     </nav>
 </div>
+
+@code {
+    private bool isAuthenticated = false;
+    private UserAccount? user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+
+        if (isAuthenticated)
+        {
+            var username = authState.User.Identity?.Name;
+            if (!string.IsNullOrEmpty(username))
+            {
+                user = await DbContext.UserAccounts
+                    .FirstOrDefaultAsync(u => u.Username == username);
+            }
+        }
+
+        // Подписываемся на изменения состояния аутентификации
+        ((CustomAuthStateProvider)AuthStateProvider).AuthenticationStateChanged += OnAuthenticationStateChanged;
+    }
+
+    private async void OnAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        var authState = await task;
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+
+        if (isAuthenticated)
+        {
+            var username = authState.User.Identity?.Name;
+            if (!string.IsNullOrEmpty(username))
+            {
+                user = await DbContext.UserAccounts
+                    .FirstOrDefaultAsync(u => u.Username == username);
+            }
+        }
+        else
+        {
+            user = null;
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        ((CustomAuthStateProvider)AuthStateProvider).AuthenticationStateChanged -= OnAuthenticationStateChanged;
+    }
+}
