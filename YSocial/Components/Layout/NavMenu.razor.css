@@ -47,3 +47,13 @@
 .navbar-light .profile-nav-item:hover .nav-link-text {
     color: rgba(0, 0, 0, 0.9);
 }
+
+/* Добавляем стиль для .top-row */
+.top-row {
+    background-color: #000; /* Черный фон */
+    height: 3.5rem; /* Та же высота, что и в MainLayout */
+    width: 100%; /* Растягиваем на всю ширину */
+    display: flex;
+    align-items: center;
+    padding: 0; /* Убираем внутренние отступы, если есть */
+}

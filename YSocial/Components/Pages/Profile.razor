@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using YSocial.Components.Models
+@using YSocial.Components.Services
 @inject AuthenticationStateProvider AuthStateProvider
 @inject AppDbContext DbContext
 @inject NavigationManager Navigation
@@ -81,24 +82,50 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadAuthenticationState();
+        // Subscribe to authentication state changes
+        AuthStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+    }
+
+    private async Task LoadAuthenticationState()
+    {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
 
         if (isAuthenticated)
         {
             var username = authState.User.Identity.Name;
-            user = await DbContext.UserAccounts.Include(u => u.Posts).FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
-            recentPosts = user.Posts.ToList();
+            user = await DbContext.UserAccounts
+                .Include(u => u.Posts)
+                .FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
+            recentPosts = user.Posts?.ToList() ?? new List<Post>();
         }
 
         isLoading = false;
+        StateHasChanged();
+    }
+
+    private async void OnAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        await LoadAuthenticationState();
+        await InvokeAsync(StateHasChanged);
     }
 
     private string GetAvatarUrl() => string.IsNullOrEmpty(user.AvatarUrl) ? "/images/default-avatar.png" : user.AvatarUrl;
 
     private void ToggleSettings() => showSettings = !showSettings;
 
-    private void OpenAvatarUpload() {}
-    private void ShowModal(string type) {}
-    private void Logout() {}
+    private void OpenAvatarUpload() { }
+    private void ShowModal(string type) { }
+
+    private async Task Logout()
+    {
+        await ((CustomAuthStateProvider)AuthStateProvider).SignOutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        AuthStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+    }
 }
