@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -11,22 +12,19 @@ public class UserAccount
     [Column("id")]
     public int Id { get; set; }
 
+    [Required]
     [Column("username")]
-    [Required]
-    [MaxLength(50)]
-    public string? Username { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
 
-    [Column("password")] 
     [Required]
-    [MaxLength(256)] 
-    public string? Password { get; set; } = string.Empty;
-    
+    [Column("password")]
+    public string Password { get; set; } = string.Empty;
+
     [Column("avatar_url")]
-    public string AvatarUrl { get; set; } = "/images/default-avatar.png";
+    public string? AvatarUrl { get; set; }
 
     [Column("description")]
-    public string Description { get; set; } = string.Empty;
+    public string? Description { get; set; }
 
-    // Связь с постами
-    public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
+    public virtual List<Post> Posts { get; set; } = new();
 }

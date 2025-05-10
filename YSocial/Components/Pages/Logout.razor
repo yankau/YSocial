@@ -3,10 +3,30 @@
 @inject CustomAuthStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
+@if (isLoggingOut)
+{
+    <div class="loading-container">Logging out...</div>
+}
+
 @code {
+    private bool isLoggingOut = true;
+
     protected override async Task OnInitializedAsync()
     {
-        await AuthStateProvider.SignOutAsync();
-        Navigation.NavigateTo("/login", forceLoad: true);
+        try
+        {
+            Console.WriteLine("Logout: Initiating sign-out");
+            await AuthStateProvider.SignOutAsync();
+            Console.WriteLine("Logout: Sign-out completed, navigating to login");
+            // Delay briefly to ensure state propagation
+            await Task.Delay(100);
+            Navigation.NavigateTo("/login");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Logout: Error during sign-out: {ex}");
+            isLoggingOut = false;
+            // Optionally display an error message
+        }
     }
 }

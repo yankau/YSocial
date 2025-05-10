@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -12,22 +11,25 @@ namespace YSocial.Components.Models
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         [Column("id")]
         public int Id { get; set; }
-        
-        [Column("user_id")]
-        public int UserId { get; set; }
-        
+
+        [Required]
+        [Column("title")]
+        public string Title { get; set; } = string.Empty;
+
         [Required]
         [Column("content")]
         public string Content { get; set; } = string.Empty;
-        
+
+        [Column("image_urls")]
+        public string? ImageUrls { get; set; }
+
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        [ForeignKey("UserId")]
-        public virtual UserAccount User { get; set; }
+        [Column("user_id")]
+        public int UserId { get; set; }
 
-        // Список изображений (в виде URL)
-        [Column("image_urls")]
-        public string ImageUrls { get; set; } = string.Empty;
+        [ForeignKey("UserId")]
+        public virtual UserAccount User { get; set; } = null!;
     }
 }

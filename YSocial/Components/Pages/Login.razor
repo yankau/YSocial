@@ -1,15 +1,17 @@
 @page "/login"
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
 @using YSocial.Components.Models
 @using YSocial.Components.Services
-@inject AppDbContext appDbContext
-@inject NavigationManager NavigationManager
+@inject IDbContextFactory<AppDbContext> DbContextFactory
+@inject NavigationManager Navigation
 @inject AuthService AuthService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JSRuntime
 
 <div class="row justify-content-center pt-4 pb-4">
     <div class="col-lg-4">
-        <EditForm Model="loginModel" OnValidSubmit="Authenticate" FormName="LoginForm">
+        <EditForm Model="loginModel" OnValidSubmit="Authenticate" FormName="LoginForm" id="login-form">
             <DataAnnotationsValidator />
             <ValidationSummary />
             
@@ -17,14 +19,14 @@
                 <div class="card-header" style="background-color: #1a1a1a">
                     <h2 class="mb-0">Login</h2>
                 </div>
-             
+                
                 <div class="card-body" style="background-color: #1a1a1a">
                     <div class="mb-3">
                         <label class="form-label">Username</label>
                         <InputText @bind-Value="loginModel.Username" class="form-control bg-secondary border-dark text-light" placeholder="Enter username" @oninput="OnUsernameChanged" />
                         <ValidationMessage For="() => loginModel.Username" />
                     </div>
-                  
+                    
                     <div class="mb-3">
                         <label class="form-label">Password</label>
                         <InputText type="password" @bind-Value="loginModel.Password" class="form-control bg-secondary border-dark text-light" placeholder="Enter password" />
@@ -36,7 +38,7 @@
                         <div class="alert alert-danger">@errorMessage</div>
                     }
 
-                    @if (showUserInfo)
+                    @if (showUserInfo && !string.IsNullOrEmpty(loginModel.Username))
                     {
                         <div class="user-info mt-3">
                             <div class="d-flex align-items-center mb-2">
@@ -56,7 +58,9 @@
                     }
                 </div>
                 <div class="card-footer" style="background-color: #1a1a1a">
-                    <button type="submit" class="btn btn-sm w-100" style="background-color: #967bb6; color: white; border: none">Sign in</button>
+                    <button type="submit" class="btn btn-sm w-100" style="background-color: #967bb6; color: white; border: none" disabled="@isSubmitting">
+                        @(isSubmitting ? "Signing in..." : "Sign in")
+                    </button>
                 </div>
                 <div class="text-center mt-2">
                     <a href="/register" class="text-white">Don't have an account? Register</a>
@@ -69,23 +73,50 @@
 @code {
     [SupplyParameterFromForm]
     private LoginModel loginModel { get; set; } = new();
-    private string? errorMessage = null;
-    private bool showUserInfo = false;
+    private string? errorMessage;
+    private bool showUserInfo;
     private string currentUserAvatar = string.Empty;
     private string currentUserDescription = string.Empty;
-    private bool shouldNavigate = false;
+    private bool isSubmitting;
+    private bool shouldNavigateToMainPage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("preventDoubleSubmit", "login-form");
+        }
+
+        if (shouldNavigateToMainPage)
+        {
+            Console.WriteLine("OnAfterRenderAsync: Navigating to main page via JavaScript");
+            await JSRuntime.InvokeVoidAsync("window.location.assign", "/");
+        }
+    }
 
     private async Task Authenticate()
     {
+        if (isSubmitting)
+        {
+            Console.WriteLine("Authenticate: Already submitting, ignoring duplicate call");
+            return;
+        }
+
+        isSubmitting = true;
+        shouldNavigateToMainPage = false;
+        StateHasChanged();
+
         try
         {
             Console.WriteLine("Authenticate started");
             errorMessage = null;
             showUserInfo = false;
 
-            var userAccount = await appDbContext.UserAccounts
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var userAccount = await dbContext.UserAccounts
+                .AsNoTracking()
                 .Select(u => new { u.Username, u.Password, u.AvatarUrl, u.Description })
-                .FirstOrDefaultAsync(x => x.Username == loginModel.Username);
+                .FirstOrDefaultAsync(u => u.Username == loginModel.Username);
 
             if (userAccount == null)
             {
@@ -114,9 +145,13 @@
             {
                 Console.WriteLine("AuthService success, signing in");
                 await ((CustomAuthStateProvider)AuthStateProvider).SignInAsync(loginModel.Username);
-                Console.WriteLine("SignInAsync completed, setting shouldNavigate");
-                shouldNavigate = true;
-                StateHasChanged();
+                Console.WriteLine("SignInAsync completed, waiting for state propagation");
+
+                // Delay to ensure authentication state propagation
+                await Task.Delay(1000);
+
+                Console.WriteLine("Setting flag to navigate to main page");
+                shouldNavigateToMainPage = true;
             }
             else
             {
@@ -126,28 +161,28 @@
         }
         catch (Exception ex)
         {
-            errorMessage = "An error occurred during login.";
+            errorMessage = "An error occurred during login. Please try again.";
             Console.WriteLine($"Error during login: {ex}");
         }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (shouldNavigate)
+        finally
         {
-            Console.WriteLine("OnAfterRenderAsync: Navigating to /profile");
-            shouldNavigate = false;
-            NavigationManager.NavigateTo("/profile", forceLoad: true);
+            isSubmitting = false;
+            StateHasChanged();
         }
     }
 
     private async Task OnUsernameChanged(ChangeEventArgs e)
     {
         loginModel.Username = e.Value?.ToString() ?? string.Empty;
+        showUserInfo = false;
+        currentUserAvatar = string.Empty;
+        currentUserDescription = string.Empty;
 
         if (!string.IsNullOrEmpty(loginModel.Username))
         {
-            var userAccount = await appDbContext.UserAccounts
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var userAccount = await dbContext.UserAccounts
+                .AsNoTracking()
                 .Where(u => u.Username == loginModel.Username)
                 .Select(u => new { u.AvatarUrl, u.Description })
                 .FirstOrDefaultAsync();
@@ -158,15 +193,8 @@
                 currentUserAvatar = userAccount.AvatarUrl ?? string.Empty;
                 currentUserDescription = userAccount.Description ?? string.Empty;
             }
-            else
-            {
-                showUserInfo = false;
-            }
         }
-        else
-        {
-            showUserInfo = false;
-        }
+
         StateHasChanged();
     }
 }

@@ -1,10 +1,10 @@
 @page "/register"
 @using Microsoft.EntityFrameworkCore
 @using YSocial.Components.Models
-@inject AppDbContext dbContext
-@inject NavigationManager navigationManager
+@inject IDbContextFactory<AppDbContext> DbContextFactory
+@inject IJSRuntime JSRuntime
 
-<EditForm Model="registerModel" OnValidSubmit="HandleRegister" FormName="RegisterName">
+<EditForm Model="registerModel" OnValidSubmit="HandleRegister" FormName="RegisterName" id="register-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
@@ -50,19 +50,36 @@
     [SupplyParameterFromForm]
     private RegisterModel registerModel { get; set; } = new();
     private string? errorMessage = null;
+    private bool shouldNavigateToLogin;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("preventDoubleSubmit", "register-form");
+        }
+
+        if (shouldNavigateToLogin)
+        {
+            Console.WriteLine("OnAfterRenderAsync: Navigating to login via JavaScript");
+            await JSRuntime.InvokeVoidAsync("window.location.assign", "/login");
+        }
+    }
 
     private async Task HandleRegister()
     {
         try
         {
             errorMessage = null;
-        
+            shouldNavigateToLogin = false;
+
             if (registerModel.Password != registerModel.ConfirmPassword)
             {
                 errorMessage = "Passwords do not match";
                 return;
             }
 
+            using var dbContext = DbContextFactory.CreateDbContext();
             if (await dbContext.UserAccounts.AnyAsync(u => u.Username == registerModel.Username))
             {
                 errorMessage = "Username already exists";
@@ -72,24 +89,22 @@
             var newUser = new UserAccount
             {
                 Username = registerModel.Username,
-                Password = Cryptography.Sha256Hash(registerModel.Password)
+                Password = Cryptography.Sha256Hash(registerModel.Password),
+                AvatarUrl = "/images/default-avatar.png", // Default avatar
+                Description = " " // Single space
             };
 
             dbContext.UserAccounts.Add(newUser);
             await dbContext.SaveChangesAsync();
 
-            // Используем InvokeAsync для безопасного вызова навигации
-            await InvokeAsync(async () => 
-            {
-                await Task.Delay(100);
-                navigationManager.NavigateTo("/login");
-                StateHasChanged();
-            });
+            Console.WriteLine("Registration successful, setting flag to navigate to login");
+            shouldNavigateToLogin = true;
         }
         catch (Exception ex)
         {
-            errorMessage = "Registration completed! You can now login.";
-            Console.WriteLine($"Success with warning: {ex}");
+            errorMessage = "An error occurred during registration. Please try again.";
+            Console.WriteLine($"Error during registration: {ex}");
         }
+        StateHasChanged();
     }
 }

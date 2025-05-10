@@ -5,16 +5,18 @@ namespace YSocial.Components.Services;
 
 public class AuthService
 {
-    private readonly AppDbContext _dbContext;
+    private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
 
-    public AuthService(AppDbContext dbContext)
+    public AuthService(IDbContextFactory<AppDbContext> dbContextFactory)
     {
-        _dbContext = dbContext;
+        _dbContextFactory = dbContextFactory;
     }
 
     public async Task<bool> LoginAsync(string username, string password)
     {
-        var user = await _dbContext.UserAccounts
+        using var dbContext = _dbContextFactory.CreateDbContext(); // Fixed typo: _dbContext_factory -> _dbContextFactory
+        var user = await dbContext.UserAccounts
+            .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Username == username);
 
         if (user == null || user.Password != Cryptography.Sha256Hash(password))

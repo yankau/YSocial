@@ -4,22 +4,21 @@
 @using YSocial.Components.Models
 @using YSocial.Components.Services
 @inject AuthenticationStateProvider AuthStateProvider
-@inject AppDbContext DbContext
+@inject IDbContextFactory<AppDbContext> DbContextFactory
 @inject NavigationManager Navigation
-@inject IWebHostEnvironment Env
 
 <PageTitle>Profile</PageTitle>
 
-@if (!isAuthenticated && !isLoading)
+@if (isLoading)
+{
+    <div class="loading-container">Loading profile...</div>
+}
+else if (!isAuthenticated)
 {
     <div class="unauthorized-container">
         <p>Please sign in to view your profile</p>
         <a href="/login" class="login-button">Sign In</a>
     </div>
-}
-else if (isLoading)
-{
-    <div class="loading-container">Loading profile...</div>
 }
 else
 {
@@ -39,7 +38,7 @@ else
                     <button @onclick="OpenAvatarUpload">Change Avatar</button>
                     <button @onclick="@(() => ShowModal("description"))">Change Description</button>
                     <button @onclick="@(() => ShowModal("password"))">Change Password</button>
-                    <button @onclick="Logout" class="logout-button">Logout</button>
+                    <NavLink href="/logout" class="logout-button">Logout</NavLink>
                 </div>
             }
         </div>
@@ -52,6 +51,7 @@ else
                     @foreach (var post in recentPosts.OrderByDescending(p => p.CreatedAt))
                     {
                         <div class="post-item">
+                            <h4>@post.Title</h4>
                             <p>@post.Content</p>
                             @if (!string.IsNullOrEmpty(post.ImageUrls))
                             {
@@ -76,29 +76,50 @@ else
 @code {
     private UserAccount user = new();
     private bool isLoading = true;
-    private bool isAuthenticated = false;
-    private bool showSettings = false;
-    private List<Post> recentPosts = new();
+    private bool isAuthenticated;
+    private bool showSettings;
+    private List<Post> recentPosts = [];
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAuthenticationState();
-        // Subscribe to authentication state changes
-        AuthStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        ((CustomAuthStateProvider)AuthStateProvider).AuthenticationStateChanged += OnAuthenticationStateChanged;
     }
 
     private async Task LoadAuthenticationState()
     {
+        isLoading = true;
+        StateHasChanged();
+
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        Console.WriteLine($"Profile.razor: isAuthenticated = {isAuthenticated}");
 
         if (isAuthenticated)
         {
-            var username = authState.User.Identity.Name;
-            user = await DbContext.UserAccounts
-                .Include(u => u.Posts)
-                .FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
-            recentPosts = user.Posts?.ToList() ?? new List<Post>();
+            var username = authState.User.Identity?.Name;
+            if (!string.IsNullOrEmpty(username))
+            {
+                Console.WriteLine($"Profile.razor: Loading user {username}");
+                using var dbContext = DbContextFactory.CreateDbContext();
+                user = await dbContext.UserAccounts
+                    .AsNoTracking()
+                    .Include(u => u.Posts)
+                    .FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
+
+                recentPosts = user.Posts?.ToList() ?? [];
+            }
+            else
+            {
+                Console.WriteLine("Profile.razor: No username in auth state");
+                isAuthenticated = false;
+            }
+        }
+        else
+        {
+            Console.WriteLine("Profile.razor: Not authenticated, clearing user data");
+            user = new UserAccount();
+            recentPosts = [];
         }
 
         isLoading = false;
@@ -118,14 +139,8 @@ else
     private void OpenAvatarUpload() { }
     private void ShowModal(string type) { }
 
-    private async Task Logout()
-    {
-        await ((CustomAuthStateProvider)AuthStateProvider).SignOutAsync();
-        Navigation.NavigateTo("/login", forceLoad: true);
-    }
-
     public void Dispose()
     {
-        AuthStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        ((CustomAuthStateProvider)AuthStateProvider).AuthenticationStateChanged -= OnAuthenticationStateChanged;
     }
 }
