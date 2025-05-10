@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using YSocial.Components;
 using YSocial.Components.Models;
 using YSocial.Components.Services;
+using YSocial.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,7 +27,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<CustomAuthStateProvider>());
 builder.Services.AddScoped<AuthService>();
-
+builder.Services.AddSignalR()
+    .AddJsonProtocol();
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DbConnection")));
 
@@ -38,11 +40,13 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
-app.UseStaticFiles();
-app.MapStaticAssets();
+
+app.MapHub<ChatHub>("/chathub");
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

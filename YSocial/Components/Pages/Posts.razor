@@ -31,44 +31,43 @@
                 }
                 else
                 {
-                    <!-- Post Creation Form -->
-                    <div class="create-post mb-3">
-                        <EditForm Model="postModel" OnValidSubmit="CreatePost" FormName="CreatePostForm" id="create-post-form">
-                            <DataAnnotationsValidator />
-                            <div class="d-flex align-items-start mb-2">
-                                <img src="@(string.IsNullOrEmpty(currentUser.AvatarUrl) ? "/images/default-avatar.png" : currentUser.AvatarUrl)"
-                                     class="avatar-preview rounded-circle me-2"
-                                     style="width: 32px; height: 32px; object-fit: cover"
-                                     alt="User avatar" />
-                                <div class="flex-grow-1">
-                                    <InputText @bind-Value="postModel.Title"
-                                               class="form-control bg-secondary border-dark text-light mb-2"
-                                               placeholder="Post Title" />
-                                    <ValidationMessage For="() => postModel.Title" />
-                                    <InputTextArea @bind-Value="postModel.Content"
-                                                   class="form-control bg-secondary border-dark text-light mb-2"
-                                                   placeholder="What's on your mind?"
-                                                   rows="2" />
-                                    <ValidationMessage For="() => postModel.Content" />
-                                    <div class="image-upload mb-2">
-                                        <InputFile id="image-upload" style="display: none;" OnChange="HandleImageUpload" accept="image/*" />
-                                        <button class="btn btn-outline-secondary" type="button" @onclick="TriggerImageUpload"  @onclick:preventDefault>Add Image</button>
-                                        @if (!string.IsNullOrEmpty(postModel.ImageUrls))
-                                        {
-                                            <p class="text-light mt-1">Image selected: @(postModel.ImageUrls.Length > 50 ? postModel.ImageUrls.Substring(0, 50) + "..." : postModel.ImageUrls)</p>
-                                        }
-                                    </div>
-                                    <button class="btn btn-primary" type="submit" disabled="@isCreatingPost" @onclick:stopPropagation @onclick:preventDefault>
-                                        @(isCreatingPost ? "Posting..." : "Post")
-                                    </button>
-                                </div>
-                            </div>
-                            @if (!string.IsNullOrEmpty(postMessage))
-                            {
-                                <div class="mt-2 @(postSuccess ? "text-success" : "text-danger")">@postMessage</div>
-                            }
-                        </EditForm>
-                    </div>
+    <div class="create-post mb-3">
+    <EditForm Model="postModel" OnValidSubmit="CreatePost" FormName="CreatePostForm" id="create-post-form">
+        <DataAnnotationsValidator />
+        <div class="d-flex align-items-start mb-2">
+            <img src="@(string.IsNullOrEmpty(currentUser.AvatarUrl) ? "/images/default-avatar.png" : currentUser.AvatarUrl)"
+                 class="avatar-preview rounded-circle me-2"
+                 style="width: 32px; height: 32px; object-fit: cover"
+                 alt="User avatar" />
+            <div class="flex-grow-1">
+                <InputText @bind-Value="postModel.Title"
+                           class="form-control bg-secondary border-dark text-light mb-2"
+                           placeholder="Post Title" />
+                <ValidationMessage For="() => postModel.Title" />
+                <InputTextArea @bind-Value="postModel.Content"
+                               class="form-control bg-secondary border-dark text-light mb-2"
+                               placeholder="What's on your mind?"
+                               rows="2" />
+                <ValidationMessage For="() => postModel.Content" />
+                <div class="image-upload mb-2">
+                    <InputFile id="image-upload" style="display: none;" OnChange="HandleImageUpload" accept="image/*" />
+                    <button class="btn btn-outline-secondary" type="button" @onclick="TriggerImageUpload">Add Image</button>
+                    @if (!string.IsNullOrEmpty(postModel.ImageUrls))
+                    {
+                        <p class="text-light mt-1">Image selected: @(postModel.ImageUrls.Length > 50 ? postModel.ImageUrls.Substring(0, 50) + "..." : postModel.ImageUrls)</p>
+                    }
+                </div>
+                <button class="btn btn-primary" type="submit" disabled="@isCreatingPost">
+                    @(isCreatingPost ? "Posting..." : "Post")
+                </button>
+            </div>
+        </div>
+        @if (!string.IsNullOrEmpty(postMessage))
+        {
+            <div class="mt-2 @(postSuccess ? "text-success" : "text-danger")">@postMessage</div>
+        }
+    </EditForm>
+</div>
                 }
             </div>
         </div>
@@ -373,6 +372,7 @@
 
     private async Task HandleImageUpload(InputFileChangeEventArgs e)
     {
+        Console.WriteLine("Posts.razor: HandleImageUpload STARTED");
         try
         {
             var file = e.File;
@@ -400,7 +400,7 @@
                 return;
             }
 
-            // Read file as base64
+            // Читаем файл как base64
             var buffer = new byte[file.Size];
             await file.OpenReadStream(5 * 1024 * 1024).ReadAsync(buffer);
             postModel.ImageUrls = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}";
@@ -408,32 +408,58 @@
             postMessage = "Image selected successfully!";
             postSuccess = true;
             await InvokeAsync(StateHasChanged);
+            Console.WriteLine("Posts.razor: HandleImageUpload COMPLETED");
         }
         catch (Exception ex)
         {
-            postMessage = "Error uploading image.";
+            postMessage = $"Error uploading image: {ex.Message}";
             postSuccess = false;
-            Console.WriteLine($"Posts.razor: Error uploading image: {ex}");
+            Console.WriteLine($"Posts.razor: Error uploading image: {ex.Message}");
             await InvokeAsync(StateHasChanged);
         }
     }
-
     private async Task TriggerImageUpload()
     {
-        Console.WriteLine("Posts.razor: TriggerImageUpload started");
+        Console.WriteLine("Posts.razor: TriggerImageUpload STARTED");
         try
         {
-            await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('image-upload').click();");
-            Console.WriteLine("Posts.razor: TriggerImageUpload completed");
+            // Проверяем, загружен ли JavaScript
+            var jsFunctionExists = await JSRuntime.InvokeAsync<bool>("eval", "typeof window.checkElementExists === 'function'");
+            Console.WriteLine($"Posts.razor: JavaScript function checkElementExists exists: {jsFunctionExists}");
+            if (!jsFunctionExists)
+            {
+                postMessage = "JavaScript not loaded. Please refresh the page.";
+                postSuccess = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            // Проверяем, существует ли элемент
+            var elementExists = await JSRuntime.InvokeAsync<bool>("checkElementExists", "image-upload");
+            Console.WriteLine($"Posts.razor: Element with id 'image-upload' exists: {elementExists}");
+            if (!elementExists)
+            {
+                postMessage = "Image upload element not found. Please try again.";
+                postSuccess = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            // Вызываем click
+            await JSRuntime.InvokeVoidAsync("triggerFileInputClick", "image-upload");
+            Console.WriteLine("Posts.razor: TriggerImageUpload COMPLETED");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Posts.razor: Error in TriggerImageUpload: {ex.Message}");
-            postMessage = "Failed to open file explorer.";
+            postMessage = $"Failed to open file explorer: {ex.Message}";
             postSuccess = false;
             await InvokeAsync(StateHasChanged);
         }
     }
+
+  
+
 
     public void Dispose()
     {

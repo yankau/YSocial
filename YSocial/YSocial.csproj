@@ -17,6 +17,8 @@
 
     <ItemGroup>
       <PackageReference Include="Microsoft.AspNetCore.Components.ProtectedBrowserStorage" Version="5.0.0-rc.1.20451.17" />
+      <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.4" />
+      <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.0-preview.3.25172.1" />
       <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.4" />
       <PackageReference Include="MudBlazor" Version="8.6.0" />
       <PackageReference Include="MudBlazor.ThemeManager" Version="3.0.0" />
