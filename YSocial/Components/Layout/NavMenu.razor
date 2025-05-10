@@ -31,7 +31,12 @@
             </NavLink>
         </div>
 
-    
+        <!-- Chat Link -->
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/chat">
+                <span class="oi oi-chat" aria-hidden="true"></span> Chat @(unreadMessagesCount > 0 ? $"({unreadMessagesCount})" : "")
+            </NavLink>
+        </div>
        
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="/friends">
@@ -69,6 +74,7 @@
 @code {
     private bool isAuthenticated;
     private UserAccount? user;
+    private int unreadMessagesCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -90,6 +96,11 @@
                 user = await dbContext.UserAccounts
                     .AsNoTracking()
                     .FirstOrDefaultAsync(u => u.Username == username);
+
+                if (user != null)
+                {
+                    await LoadUnreadMessagesCount();
+                }
             }
             else
             {
@@ -102,6 +113,24 @@
         }
 
         await InvokeAsync(StateHasChanged);
+    }
+    
+
+    private async Task LoadUnreadMessagesCount()
+    {
+        if (user == null) return;
+
+        try
+        {
+            using var dbContext = DbContextFactory.CreateDbContext();
+            unreadMessagesCount = await dbContext.ChatMessages
+                .AsNoTracking()
+                .CountAsync(m => m.ReceiverId == user.Id && !m.IsRead);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading unread messages count: {ex}");
+        }
     }
 
     private async void OnAuthenticationStateChanged(Task<AuthenticationState> task)

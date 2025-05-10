@@ -1,0 +1,367 @@
+@page "/chat"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YSocial.Components.Models
+@using YSocial.Components.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDbContextFactory<AppDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<div class="row justify-content-center pt-4 pb-4">
+    <div class="col-lg-6">
+        <div class="card bg-dark text-light" style="width: 600px; margin: 0 auto; background-color: #2c2c2c">
+            <div class="card-header" style="background-color: #1a1a1a">
+                <h2 class="mb-0">Chat</h2>
+            </div>
+            <div class="card-body" style="background-color: #1a1a1a">
+                @if (isLoading)
+                {
+                    <div class="loading-container text-center">Loading...</div>
+                }
+                else if (!isAuthenticated)
+                {
+                    <div class="unauthorized-container text-center">
+                        <p>Please sign in to use chat</p>
+                        <a href="/login" class="btn btn-primary">Sign In</a>
+                    </div>
+                }
+                else if (!friends.Any())
+                {
+                    <div class="text-center">
+                        <p>You don't have any friends yet</p>
+                        <a href="/friends" class="btn btn-purple">Find Friends</a>
+                    </div>
+                }
+                else
+                {
+                    <div class="chat-container">
+                        <!-- Friends List -->
+                        <div class="friends-list mb-3">
+                            @foreach (var friend in friends)
+                            {
+                                <div class="friend-item d-flex align-items-center p-2 mb-2 bg-secondary rounded @(selectedFriend?.Id == friend.Id ? "selected" : "")"
+                                     @onclick="() => SelectFriend(friend)">
+                                    <img src="@(string.IsNullOrEmpty(friend.AvatarUrl) ? "/images/default-avatar.png" : friend.AvatarUrl)"
+                                         class="avatar-preview rounded-circle me-2"
+                                         style="width: 40px; height: 40px; object-fit: cover"
+                                         alt="Friend avatar" />
+                                    <div>
+                                        <div class="fw-bold">@friend.Username</div>
+                                        <div class="small @(friend.IsOnline ? "text-success" : "text-muted")">
+                                            @(friend.IsOnline ? "Online" : "Offline")
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Chat Area -->
+                        @if (selectedFriend != null)
+                        {
+                            <div class="chat-area">
+                            <div class="messages-container" @ref="messagesContainer">
+                                @foreach (var message in messages)
+                                {
+                                    <div class="message @(message.SenderId == currentUser.Id ? "sent" : "received")">
+                                        <div class="message-content">
+                                            @message.Content
+                                        </div>
+                                        <div class="message-time small text-muted">
+                                            @message.Timestamp.ToString("HH:mm")
+                                        </div>
+                                        <div class="message-time small text-muted">
+                                            @message.Timestamp.ToString("HH:mm")
+                                        </div>
+                                        
+                                    </div>
+                                }
+                            </div>
+                            
+
+                                <div class="message-input mt-3">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control bg-secondary border-dark text-light"
+                                               placeholder="Type a message..."
+                                               @bind="newMessage"
+                                               @bind:event="oninput"
+                                               @onkeyup="HandleKeyPress" />
+                                        <button class="btn btn-purple" @onclick="SendMessage" disabled="@string.IsNullOrWhiteSpace(newMessage)">
+                                            Send
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 600px;
+    }
+
+    .friends-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .friend-item {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .friend-item:hover {
+        background-color: #3c3c3c !important;
+    }
+
+    .friend-item.selected {
+        background-color: #967bb6 !important;
+    }
+
+    .chat-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .messages-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .message {
+        max-width: 70%;
+        padding: 0.5rem 1rem;
+        border-radius: 1rem;
+    }
+
+    .message.sent {
+        align-self: flex-end;
+        background-color: #967bb6;
+    }
+
+    .message.received {
+        align-self: flex-start;
+        background-color: #3c3c3c;
+    }
+
+    .message-content {
+        word-wrap: break-word;
+    }
+
+    .message-time {
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    .btn-purple {
+        background-color: #967bb6;
+        border-color: #967bb6;
+        color: white;
+    }
+
+    .btn-purple:hover {
+        background-color: #845aa6;
+        border-color: #845aa6;
+    }
+</style>
+@code {
+    private bool isLoading = true;
+    private bool isAuthenticated;
+    private List<UserAccount> friends = new();
+    private UserAccount? selectedFriend;
+    private UserAccount currentUser = new();
+    private List<ChatMessage> messages = new();
+    private string newMessage = string.Empty;
+    private ElementReference messagesContainer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAuthenticationState();
+    }
+
+    private async Task LoadAuthenticationState()
+    {
+        Console.WriteLine("Chat.razor: LoadAuthenticationState started");
+        isLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        Console.WriteLine($"Chat.razor: isAuthenticated = {isAuthenticated}");
+
+        if (isAuthenticated)
+        {
+            var username = authState.User.Identity?.Name;
+            if (!string.IsNullOrEmpty(username))
+            {
+                using var dbContext = DbContextFactory.CreateDbContext();
+                currentUser = await dbContext.UserAccounts
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
+
+                if (currentUser.Id == 0)
+                {
+                    Console.WriteLine("Chat.razor: Current user not found");
+                    isAuthenticated = false;
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+
+                await LoadFriends();
+            }
+            else
+            {
+                Console.WriteLine("Chat.razor: No username in auth state");
+                isAuthenticated = false;
+                Navigation.NavigateTo("/login");
+            }
+        }
+        else
+        {
+            Console.WriteLine("Chat.razor: Not authenticated");
+            Navigation.NavigateTo("/login");
+        }
+
+        isLoading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadFriends()
+    {
+        Console.WriteLine("Chat.razor: LoadFriends started");
+        try
+        {
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var friendships = await dbContext.Friendships
+                .AsNoTracking()
+                .Include(f => f.User1)
+                .Include(f => f.User2)
+                .Where(f => (f.User1Id == currentUser.Id || f.User2Id == currentUser.Id) && f.Status == "accepted")
+                .ToListAsync();
+
+            friends = friendships
+                .Select(f => f.User1Id == currentUser.Id ? f.User2 : f.User1)
+                .ToList();
+            Console.WriteLine($"Chat.razor: Loaded {friends.Count} friends");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Chat.razor: Error loading friends: {ex}");
+        }
+    }
+
+    private async Task SelectFriend(UserAccount friend)
+    {
+        Console.WriteLine($"Chat.razor: Selecting friend {friend.Username}");
+        selectedFriend = friend;
+        await LoadMessages();
+        await ScrollToBottom();
+    }
+
+    private async Task LoadMessages()
+    {
+        if (selectedFriend == null)
+        {
+            Console.WriteLine("Chat.razor: No friend selected for loading messages");
+            return;
+        }
+
+        Console.WriteLine($"Chat.razor: Loading messages for friend {selectedFriend.Username}");
+        try
+        {
+            using var dbContext = DbContextFactory.CreateDbContext();
+            messages = await dbContext.ChatMessages
+                .AsNoTracking()
+                .Where(m => (m.SenderId == currentUser.Id && m.ReceiverId == selectedFriend.Id) ||
+                           (m.SenderId == selectedFriend.Id && m.ReceiverId == currentUser.Id))
+                .OrderBy(m => m.Timestamp)
+                .ToListAsync();
+            Console.WriteLine($"Chat.razor: Loaded {messages.Count} messages");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Chat.razor: Error loading messages: {ex}");
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(newMessage) || selectedFriend == null)
+        {
+            Console.WriteLine("Chat.razor: Cannot send message: empty message or no friend selected");
+            return;
+        }
+
+        Console.WriteLine($"Chat.razor: Sending message to {selectedFriend.Username}");
+        try
+        {
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var message = new ChatMessage
+            {
+                SenderId = currentUser.Id,
+                ReceiverId = selectedFriend.Id,
+                Content = newMessage,
+                Timestamp = DateTime.UtcNow
+            };
+
+            dbContext.ChatMessages.Add(message);
+            await dbContext.SaveChangesAsync();
+
+            messages.Add(message);
+            newMessage = string.Empty;
+            await InvokeAsync(StateHasChanged);
+            await ScrollToBottom();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Chat.razor: Error sending message: {ex}");
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newMessage))
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        Console.WriteLine("Chat.razor: ScrollToBottom called");
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("scrollToBottom", messagesContainer);
+            Console.WriteLine("Chat.razor: ScrollToBottom executed successfully");
+        }
+        catch (JSException ex)
+        {
+            Console.WriteLine($"Chat.razor: Error in ScrollToBottom: {ex.Message}");
+            // Fallback: Scroll using direct DOM manipulation
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("eval",
+                    "const el = document.querySelector('.messages-container'); if (el) el.scrollTop = el.scrollHeight;");
+                Console.WriteLine("Chat.razor: Fallback scroll executed successfully");
+            }
+            catch (Exception evalEx)
+            {
+                Console.WriteLine($"Chat.razor: Fallback scroll failed: {evalEx.Message}");
+            }
+        }
+    }
+}

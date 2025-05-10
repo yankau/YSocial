@@ -30,9 +30,14 @@ public class UserAccount
     [Column("last_seen")]
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;
 
+    // Навигационные свойства для постов
     public virtual List<Post> Posts { get; set; } = new();
 
-    // Navigation properties for friendships
+    // Навигационные свойства для дружбы
     public virtual List<Friendship> FriendshipsAsUser1 { get; set; } = new();
     public virtual List<Friendship> FriendshipsAsUser2 { get; set; } = new();
+
+    // Навигационные свойства для сообщений
+    public virtual List<ChatMessage> SentMessages { get; set; } = new();
+    public virtual List<ChatMessage> ReceivedMessages { get; set; } = new();
 }
