@@ -29,23 +29,16 @@
                 }
                 else
                 {
-                    <!-- Debug Input Field -->
-                    <div class="mb-3">
-                        <label class="form-label">Debug Input (for testing binding):</label>
-                        <input type="text" class="form-control bg-secondary border-dark text-light" @bind="debugInput" @bind:event="oninput" placeholder="Type here to test input binding" />
-                        <p>Current value: @debugInput</p>
-                    </div>
-
                     <!-- Tab Buttons -->
                     <div class="tab-buttons mb-3">
-                        <button class="btn btn-outline-light me-2 @(activeTab == "online" ? "active" : "")" disabled="@isSwitchingTab" @onclick='() => SetTab("online")'>
+                        <button class="btn btn-purple me-2 @(activeTab == "online" ? "active" : "")" disabled="@isSwitchingTab" @onclick='() => SetTab("online")'>
                             @(isSwitchingTab && activeTab == "online" ? "Loading..." : "Online")
                         </button>
-                        <button class="btn btn-outline-light me-2 @(activeTab == "list" ? "active" : "")" disabled="@isSwitchingTab" @onclick='() => SetTab("list")'>
+                        <button class="btn btn-purple me-2 @(activeTab == "list" ? "active" : "")" disabled="@isSwitchingTab" @onclick='() => SetTab("list")'>
                             @(isSwitchingTab && activeTab == "list" ? "Loading..." : "List")
                         </button>
-                        <button class="btn btn-outline-light @(activeTab == "requests" ? "active" : "")" disabled="@isSwitchingTab" @onclick='() => SetTab("requests")'>
-                            @(isSwitchingTab && activeTab == "requests" ? "Loading..." : "Requests (@incomingRequests.Count)")
+                        <button class="btn btn-purple @(activeTab == "requests" ? "active" : "")" disabled="@isSwitchingTab" @onclick='() => SetTab("requests")'>
+                            @(isSwitchingTab && activeTab == "requests" ? "Loading..." : $"Requests ({incomingRequests.Count})")
                         </button>
                     </div>
 
@@ -55,7 +48,7 @@
                             <DataAnnotationsValidator />
                             <div class="input-group">
                                 <InputText @bind-Value="friendRequestModel.Username" class="form-control bg-secondary border-dark text-light" placeholder="Enter username to add friend" @oninput="OnInputChanged" />
-                                <button class="btn btn-primary" type="submit" disabled="@isSendingRequest">
+                                <button class="btn btn-purple" type="submit" disabled="@isSendingRequest">
                                     @(isSendingRequest ? "Sending..." : "Send Request")
                                 </button>
                             </div>
@@ -153,7 +146,7 @@
                                         </div>
                                         <div>
                                             <button class="btn btn-sm btn-success me-2" disabled="@isProcessingRequest" @onclick="() => AcceptRequest(request.Id)">Accept</button>
-                                            <button class="btn btn-sm btn-danger" disabled="@isProcessingRequest" @onclick="() => AcceptRequest(request.Id)">Decline</button>
+                                            <button class="btn btn-sm btn-danger" disabled="@isProcessingRequest" @onclick="() => DeclineRequest(request.Id)">Decline</button>
                                         </div>
                                     </div>
                                 }
@@ -183,6 +176,17 @@
         background-color: #967bb6;
         color: white;
         border-color: #967bb6;
+    }
+
+    .btn-purple {
+        background-color: #967bb6;
+        border-color: #967bb6;
+        color: white;
+    }
+
+    .btn-purple:hover {
+        background-color: #845aa6;
+        border-color: #845aa6;
     }
 
     .search-bar .form-control {
@@ -222,10 +226,9 @@
     private bool isSwitchingTab;
     private bool isProcessingRequest;
     private bool isRefreshingOnlineFriends;
-    private string debugInput = string.Empty;
-    private bool showUserInfo;
-    private string targetUserAvatar = string.Empty;
-    private string targetUserDescription = string.Empty;
+    private bool showUserInfo; // Restored
+    private string targetUserAvatar = string.Empty; // Restored
+    private string targetUserDescription = string.Empty; // Restored
     private List<UserAccount> friends = [];
     private List<UserAccount> onlineFriends = [];
     private List<Friendship> incomingRequests = [];
@@ -570,7 +573,6 @@
             searchMessage = "Friend request sent successfully!";
             searchSuccess = true;
             friendRequestModel.Username = "";
-            showUserInfo = false;
             await LoadIncomingRequests();
         }
         catch (Exception ex)
@@ -729,4 +731,3 @@
         isTimerInitialized = false;
     }
 }
-

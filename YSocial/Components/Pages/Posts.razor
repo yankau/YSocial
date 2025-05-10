@@ -50,8 +50,13 @@
                                                    placeholder="What's on your mind?"
                                                    rows="2" />
                                     <ValidationMessage For="() => postModel.Content" />
-                                    <div class="image-upload-placeholder mb-2">
-                                        <button class="btn btn-outline-secondary" disabled>Add Image (Not Implemented)</button>
+                                    <div class="image-upload mb-2">
+                                        <InputFile id="image-upload" style="display: none;" OnChange="HandleImageUpload" accept="image/*" />
+                                        <button class="btn btn-outline-secondary" type="button" @onclick="TriggerImageUpload"  @onclick:preventDefault>Add Image</button>
+                                        @if (!string.IsNullOrEmpty(postModel.ImageUrls))
+                                        {
+                                            <p class="text-light mt-1">Image selected: @(postModel.ImageUrls.Length > 50 ? postModel.ImageUrls.Substring(0, 50) + "..." : postModel.ImageUrls)</p>
+                                        }
                                     </div>
                                     <button class="btn btn-primary" type="submit" disabled="@isCreatingPost" @onclick:stopPropagation @onclick:preventDefault>
                                         @(isCreatingPost ? "Posting..." : "Post")
@@ -98,7 +103,10 @@
                                     <p>@post.Content</p>
                                     @if (!string.IsNullOrEmpty(post.ImageUrls))
                                     {
-                                        <img src="@post.ImageUrls" class="post-image img-fluid rounded" alt="Post image" />
+                                        @foreach (var imageUrl in post.ImageUrls.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                        {
+                                            <img src="@imageUrl.Trim()" class="post-image img-fluid rounded mt-2" alt="Post Image" />
+                                        }
                                     }
                                 </div>
                             }
@@ -141,6 +149,10 @@
     .loading-container, .unauthorized-container {
         padding: 20px;
         text-align: center;
+    }
+
+    .image-upload .btn-outline-secondary {
+        margin-right: 10px;
     }
 </style>
 
@@ -331,8 +343,8 @@
                 Title = postModel.Title,
                 Content = postModel.Content,
                 UserId = currentUser.Id,
-                CreatedAt = DateTime.UtcNow
-                // ImageUrls will remain null since image upload is not implemented
+                CreatedAt = DateTime.UtcNow,
+                ImageUrls = postModel.ImageUrls // Save the base64 image data
             };
 
             dbContext.Posts.Add(post);
@@ -356,6 +368,70 @@
             await InvokeAsync(StateHasChanged);
             Console.WriteLine("Posts.razor: CreatePost completed");
             Console.WriteLine($"Posts.razor: Post-CreatePost state: isComponentMounted = {isComponentMounted}, URL = {Navigation.Uri}");
+        }
+    }
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file == null || file.Size == 0)
+            {
+                postMessage = "No file selected.";
+                postSuccess = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            if (!file.ContentType.StartsWith("image/"))
+            {
+                postMessage = "Please upload an image file.";
+                postSuccess = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            if (file.Size > 5 * 1024 * 1024) // 5MB limit
+            {
+                postMessage = "File size exceeds 5MB.";
+                postSuccess = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            // Read file as base64
+            var buffer = new byte[file.Size];
+            await file.OpenReadStream(5 * 1024 * 1024).ReadAsync(buffer);
+            postModel.ImageUrls = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}";
+
+            postMessage = "Image selected successfully!";
+            postSuccess = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            postMessage = "Error uploading image.";
+            postSuccess = false;
+            Console.WriteLine($"Posts.razor: Error uploading image: {ex}");
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task TriggerImageUpload()
+    {
+        Console.WriteLine("Posts.razor: TriggerImageUpload started");
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('image-upload').click();");
+            Console.WriteLine("Posts.razor: TriggerImageUpload completed");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Posts.razor: Error in TriggerImageUpload: {ex.Message}");
+            postMessage = "Failed to open file explorer.";
+            postSuccess = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
