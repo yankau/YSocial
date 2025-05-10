@@ -7,7 +7,7 @@
 @inject IDbContextFactory<AppDbContext> DbContextFactory
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
-@implements IDisposable
+@rendermode InteractiveServer
 
 <div class="row justify-content-center pt-4 pb-4">
     <div class="col-lg-6">
@@ -18,7 +18,7 @@
             <div class="card-body" style="background-color: #1a1a1a">
                 @if (isLoading)
                 {
-                    <div class="loading-container text-center">Loading friends...</div>
+                    <div class="loading-container text-center">Loading...</div>
                 }
                 else if (!isAuthenticated)
                 {
@@ -29,17 +29,17 @@
                 }
                 else
                 {
-                    <!-- Tab Buttons -->
+                    <!-- Navigation Buttons -->
                     <div class="tab-buttons mb-3">
-                        <button class="btn btn-purple me-2 @(activeTab == "online" ? "active" : "")" disabled="@isSwitchingTab" @onclick='() => SetTab("online")'>
-                            @(isSwitchingTab && activeTab == "online" ? "Loading..." : "Online")
-                        </button>
-                        <button class="btn btn-purple me-2 @(activeTab == "list" ? "active" : "")" disabled="@isSwitchingTab" @onclick='() => SetTab("list")'>
-                            @(isSwitchingTab && activeTab == "list" ? "Loading..." : "List")
-                        </button>
-                        <button class="btn btn-purple @(activeTab == "requests" ? "active" : "")" disabled="@isSwitchingTab" @onclick='() => SetTab("requests")'>
-                            @(isSwitchingTab && activeTab == "requests" ? "Loading..." : $"Requests ({incomingRequests.Count})")
-                        </button>
+                        <a href="/friends/online" class="btn btn-purple me-2">
+                            Online
+                        </a>
+                        <a href="/friends/list" class="btn btn-purple me-2">
+                            List
+                        </a>
+                        <a href="/friends/requests" class="btn btn-purple">
+                            Requests (@incomingRequests.Count)
+                        </a>
                     </div>
 
                     <!-- Search Bar -->
@@ -61,15 +61,16 @@
                             {
                                 <div class="user-info mt-3">
                                     <div class="d-flex align-items-center mb-2">
-                                        <img src="@(string.IsNullOrEmpty(targetUserAvatar) ? "/images/default-avatar.png" : targetUserAvatar)" 
-                                             class="avatar-preview rounded-circle me-2" 
-                                             style="width: 40px; height: 40px; object-fit: cover" 
+                                        <img src="@(string.IsNullOrEmpty(targetUserAvatar) ? "/images/default-avatar.png" : targetUserAvatar)"
+                                             class="avatar-preview rounded-circle me-2"
+                                             style="width: 40px; height: 40px; object-fit: cover"
                                              alt="User avatar" />
                                         <span>@friendRequestModel.Username</span>
                                     </div>
                                     @if (!string.IsNullOrEmpty(targetUserDescription))
                                     {
                                         <div class="user-description small text-muted">
+                                        
                                             @targetUserDescription
                                         </div>
                                     }
@@ -77,90 +78,6 @@
                             }
                         </EditForm>
                     </div>
-
-                    <!-- Tab Content -->
-                    @if (activeTab == "online")
-                    {
-                        <h4>Online Friends</h4>
-                        @if (isRefreshingOnlineFriends)
-                        {
-                            <p>Checking for online friends...</p>
-                        }
-                        else if (onlineFriends.Any())
-                        {
-                            <div class="friends-list">
-                                @foreach (var friend in onlineFriends)
-                                {
-                                    <div class="friend-item d-flex align-items-center mb-2">
-                                        <img src="@(friend.AvatarUrl ?? "/images/default-avatar.png")" alt="Avatar" class="friend-avatar me-2" />
-                                        <span>@friend.Username</span>
-                                    </div>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <p>No friends online.</p>
-                        }
-                    }
-                    else if (activeTab == "list")
-                    {
-                        <h4>All Friends</h4>
-                        @if (isLoadingFriends)
-                        {
-                            <p>Loading friends...</p>
-                        }
-                        else if (friends.Any())
-                        {
-                            <div class="friends-list">
-                                @foreach (var friend in friends)
-                                {
-                                    <div class="friend-item d-flex align-items-center mb-2">
-                                        <img src="@(friend.AvatarUrl ?? "/images/default-avatar.png")" alt="Avatar" class="friend-avatar me-2" />
-                                        <span>@friend.Username</span>
-                                    </div>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <p>You have no friends yet.</p>
-                        }
-                    }
-                    else if (activeTab == "requests")
-                    {
-                        <h4>Incoming Friend Requests</h4>
-                        @if (isLoadingRequests)
-                        {
-                            <p>Loading requests...</p>
-                        }
-                        else if (incomingRequests.Any())
-                        {
-                            <div class="requests-list">
-                                @foreach (var request in incomingRequests)
-                                {
-                                    <div class="request-item d-flex align-items-center justify-content-between mb-2">
-                                        <div class="d-flex align-items-center">
-                                            <img src="@(request.User1.AvatarUrl ?? "/images/default-avatar.png")" alt="Avatar" class="friend-avatar me-2" />
-                                            <span>@request.User1.Username</span>
-                                        </div>
-                                        <div>
-                                            <button class="btn btn-sm btn-success me-2" disabled="@isProcessingRequest" @onclick="() => AcceptRequest(request.Id)">Accept</button>
-                                            <button class="btn btn-sm btn-danger" disabled="@isProcessingRequest" @onclick="() => DeclineRequest(request.Id)">Decline</button>
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <p>No incoming friend requests.</p>
-                        }
-                    }
-                    else
-                    {
-                        <p>Error: Invalid tab selected. Please try again.</p>
-                    }
                 }
             </div>
         </div>
@@ -170,12 +87,8 @@
 <style>
     .tab-buttons .btn {
         border-radius: 5px;
-    }
-
-    .tab-buttons .btn.active {
-        background-color: #967bb6;
-        color: white;
-        border-color: #967bb6;
+        pointer-events: auto;
+        z-index: 10;
     }
 
     .btn-purple {
@@ -194,18 +107,6 @@
         border: 1px solid #444;
     }
 
-    .friend-avatar {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        object-fit: cover;
-    }
-
-    .friend-item, .request-item {
-        padding: 10px;
-        border-bottom: 1px solid #444;
-    }
-
     .loading-container, .unauthorized-container {
         padding: 20px;
         text-align: center;
@@ -220,41 +121,15 @@
     private bool isSendingRequest;
     private bool isLoading = true;
     private bool isAuthenticated;
-    private string activeTab = "online";
-    private bool isLoadingFriends;
-    private bool isLoadingRequests;
-    private bool isSwitchingTab;
-    private bool isProcessingRequest;
-    private bool isRefreshingOnlineFriends;
-    private bool showUserInfo; // Restored
-    private string targetUserAvatar = string.Empty; // Restored
-    private string targetUserDescription = string.Empty; // Restored
-    private List<UserAccount> friends = [];
-    private List<UserAccount> onlineFriends = [];
+    private bool showUserInfo;
+    private string targetUserAvatar = string.Empty;
+    private string targetUserDescription = string.Empty;
     private List<Friendship> incomingRequests = [];
     private UserAccount currentUser = new();
-    private System.Timers.Timer? onlineRefreshTimer;
-    private bool isTimerInitialized;
 
     protected override async Task OnInitializedAsync()
     {
-        Console.WriteLine("Friends.razor: OnInitializedAsync started");
-        try
-        {
-            await LoadAuthenticationState();
-            if (isAuthenticated && !isTimerInitialized)
-            {
-                SetupOnlineFriendsPolling();
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Friends.razor: OnInitializedAsync error: {ex}");
-            searchMessage = "Error loading friends page.";
-            searchSuccess = false;
-            isLoading = false;
-            await InvokeAsync(StateHasChanged);
-        }
+        await LoadAuthenticationState();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -264,50 +139,19 @@
             try
             {
                 await JSRuntime.InvokeVoidAsync("preventDoubleSubmit", "friend-request-form");
-                Console.WriteLine("Friends.razor: preventDoubleSubmit initialized for friend-request-form");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Friends.razor: Error initializing preventDoubleSubmit: {ex}");
+                Console.WriteLine($"Error initializing preventDoubleSubmit: {ex}");
             }
         }
-    }
-
-    private void SetupOnlineFriendsPolling()
-    {
-        if (isTimerInitialized)
-        {
-            Console.WriteLine("Friends.razor: Timer already initialized, skipping setup");
-            return;
-        }
-
-        Console.WriteLine("Friends.razor: Setting up online friends polling");
-        onlineRefreshTimer = new System.Timers.Timer(5000);
-        onlineRefreshTimer.Elapsed += async (sender, e) =>
-        {
-            if (activeTab == "online" && isAuthenticated && !isRefreshingOnlineFriends)
-            {
-                await InvokeAsync(async () =>
-                {
-                    await RefreshOnlineFriends();
-                });
-            }
-        };
-        onlineRefreshTimer.AutoReset = true;
-        onlineRefreshTimer.Start();
-        isTimerInitialized = true;
-        Console.WriteLine("Friends.razor: Timer started");
     }
 
     private async Task LoadAuthenticationState()
     {
-        Console.WriteLine("Friends.razor: LoadAuthenticationState started");
         isLoading = true;
-        await InvokeAsync(StateHasChanged);
-
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
-        Console.WriteLine($"Friends.razor: isAuthenticated = {isAuthenticated}");
 
         if (isAuthenticated)
         {
@@ -321,216 +165,99 @@
 
                 if (currentUser.Id == 0)
                 {
-                    Console.WriteLine("Friends.razor: Current user not found");
                     isAuthenticated = false;
                     Navigation.NavigateTo("/login");
                     return;
                 }
 
-                await LoadFriends();
                 await LoadIncomingRequests();
-                await RefreshOnlineFriends();
             }
             else
             {
-                Console.WriteLine("Friends.razor: No username in auth state");
                 isAuthenticated = false;
                 Navigation.NavigateTo("/login");
             }
         }
         else
         {
-            Console.WriteLine("Friends.razor: Not authenticated");
             Navigation.NavigateTo("/login");
         }
 
         isLoading = false;
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task LoadFriends()
-    {
-        Console.WriteLine("Friends.razor: LoadFriends started");
-        try
-        {
-            isLoadingFriends = true;
-            await InvokeAsync(StateHasChanged);
-
-            using var dbContext = DbContextFactory.CreateDbContext();
-            var friendships = await dbContext.Friendships
-                .AsNoTracking()
-                .Include(f => f.User1)
-                .Include(f => f.User2)
-                .Where(f => (f.User1Id == currentUser.Id || f.User2Id == currentUser.Id) && f.Status == "accepted")
-                .ToListAsync();
-
-            friends = friendships
-                .Select(f => f.User1Id == currentUser.Id ? f.User2 : f.User1)
-                .Where(f => f != null)
-                .ToList()!;
-            Console.WriteLine($"Friends.razor: Loaded {friends.Count} friends");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Friends.razor: Error loading friends: {ex}");
-            searchMessage = "Error loading friends.";
-            searchSuccess = false;
-        }
-        finally
-        {
-            isLoadingFriends = false;
-            await InvokeAsync(StateHasChanged);
-            Console.WriteLine("Friends.razor: LoadFriends completed");
-        }
-    }
-
-    private async Task RefreshOnlineFriends()
-    {
-        Console.WriteLine("Friends.razor: RefreshOnlineFriends started");
-        try
-        {
-            isRefreshingOnlineFriends = true;
-            await InvokeAsync(StateHasChanged);
-
-            using var dbContext = DbContextFactory.CreateDbContext();
-            var now = DateTime.UtcNow;
-            var onlineThreshold = now.AddMinutes(-5);
-
-            var friendships = await dbContext.Friendships
-                .AsNoTracking()
-                .Include(f => f.User1)
-                .Include(f => f.User2)
-                .Where(f => (f.User1Id == currentUser.Id || f.User2Id == currentUser.Id) && f.Status == "accepted")
-                .ToListAsync();
-
-            friends = friendships
-                .Select(f => f.User1Id == currentUser.Id ? f.User2 : f.User1)
-                .Where(f => f != null)
-                .ToList()!;
-
-            onlineFriends = friends
-                .Where(f => f.IsOnline || f.LastSeen >= onlineThreshold)
-                .ToList();
-            Console.WriteLine($"Friends.razor: Loaded {onlineFriends.Count} online friends");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Friends.razor: Error refreshing online friends: {ex}");
-            searchMessage = "Error refreshing online friends.";
-            searchSuccess = false;
-        }
-        finally
-        {
-            isRefreshingOnlineFriends = false;
-            await InvokeAsync(StateHasChanged);
-            Console.WriteLine("Friends.razor: RefreshOnlineFriends completed");
-        }
     }
 
     private async Task LoadIncomingRequests()
     {
-        Console.WriteLine("Friends.razor: LoadIncomingRequests started");
         try
         {
-            isLoadingRequests = true;
-            await InvokeAsync(StateHasChanged);
-
             using var dbContext = DbContextFactory.CreateDbContext();
             incomingRequests = await dbContext.Friendships
                 .AsNoTracking()
                 .Include(f => f.User1)
                 .Where(f => f.User2Id == currentUser.Id && f.Status == "pending")
                 .ToListAsync();
-            Console.WriteLine($"Friends.razor: Loaded {incomingRequests.Count} incoming requests");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Friends.razor: Error loading incoming requests: {ex}");
+            Console.WriteLine($"Error loading incoming requests: {ex}");
             searchMessage = "Error loading friend requests.";
             searchSuccess = false;
         }
-        finally
-        {
-            isLoadingRequests = false;
-            await InvokeAsync(StateHasChanged);
-            Console.WriteLine("Friends.razor: LoadIncomingRequests completed");
-        }
     }
 
-    private async Task SetTab(string tab)
+    private async Task OnInputChanged(ChangeEventArgs e)
     {
-        if (activeTab != tab && !isSwitchingTab)
+        var username = e.Value?.ToString();
+        if (string.IsNullOrEmpty(username))
         {
-            Console.WriteLine($"Friends.razor: Switching to tab {tab}");
-            isSwitchingTab = true;
-            await InvokeAsync(StateHasChanged);
+            showUserInfo = false;
+            targetUserAvatar = string.Empty;
+            targetUserDescription = string.Empty;
+            return;
+        }
+        
 
-            try
+        try
+        {
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var user = await dbContext.UserAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Username == username);
+
+            if (user != null)
             {
-                activeTab = tab;
-                if (tab == "online")
-                {
-                    await RefreshOnlineFriends();
-                }
-                else if (tab == "list")
-                {
-                    await LoadFriends();
-                }
-                else if (tab == "requests")
-                {
-                    await LoadIncomingRequests();
-                }
-                Console.WriteLine($"Friends.razor: Successfully switched to tab {tab}");
+                showUserInfo = true;
+                targetUserAvatar = user.AvatarUrl ?? string.Empty;
+                targetUserDescription = user.Description ?? string.Empty;
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"Friends.razor: Error switching to tab {tab}: {ex}");
-                searchMessage = $"Error loading {tab} tab.";
-                searchSuccess = false;
-            }
-            finally
-            {
-                isSwitchingTab = false;
-                await InvokeAsync(StateHasChanged);
-                Console.WriteLine($"Friends.razor: Tab switch completed, activeTab = {activeTab}, isSwitchingTab = {isSwitchingTab}");
+                showUserInfo = false;
+                targetUserAvatar = string.Empty;
+                targetUserDescription = string.Empty;
             }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine($"Friends.razor: Skipped tab switch to {tab} (already active or switching)");
+            Console.WriteLine($"Error searching for user: {ex}");
+            showUserInfo = false;
+            targetUserAvatar = string.Empty;
+            targetUserDescription = string.Empty;
         }
     }
 
     private async Task SendFriendRequest()
     {
-        if (isSendingRequest)
+        if (string.IsNullOrEmpty(friendRequestModel.Username))
         {
-            Console.WriteLine("Friends.razor: SendFriendRequest already in progress, ignoring");
+            searchMessage = "Please enter a username";
+            searchSuccess = false;
             return;
         }
 
-        Console.WriteLine($"Friends.razor: SendFriendRequest started for username '{friendRequestModel.Username}'");
         isSendingRequest = true;
-        searchMessage = null;
-        searchSuccess = false;
-        await InvokeAsync(StateHasChanged);
-
         try
         {
-            if (string.IsNullOrWhiteSpace(friendRequestModel.Username))
-            {
-                searchMessage = "Username is required.";
-                Console.WriteLine("Friends.razor: Username is empty");
-                return;
-            }
-
-            if (friendRequestModel.Username.Equals(currentUser.Username, StringComparison.OrdinalIgnoreCase))
-            {
-                searchMessage = "You cannot add yourself as a friend.";
-                Console.WriteLine("Friends.razor: Attempted to add self as friend");
-                return;
-            }
-
             using var dbContext = DbContextFactory.CreateDbContext();
             var targetUser = await dbContext.UserAccounts
                 .AsNoTracking()
@@ -538,27 +265,45 @@
 
             if (targetUser == null)
             {
-                searchMessage = "User not found.";
-                Console.WriteLine("Friends.razor: User not found");
+                searchMessage = "User not found";
+                searchSuccess = false;
+                return;
+            }
+
+            if (targetUser.Id == currentUser.Id)
+            {
+                searchMessage = "You cannot send a friend request to yourself";
+                searchSuccess = false;
                 return;
             }
 
             var existingFriendship = await dbContext.Friendships
-                .AsNoTracking()
                 .FirstOrDefaultAsync(f =>
                     (f.User1Id == currentUser.Id && f.User2Id == targetUser.Id) ||
                     (f.User1Id == targetUser.Id && f.User2Id == currentUser.Id));
 
             if (existingFriendship != null)
             {
-                searchMessage = existingFriendship.Status == "accepted"
-                    ? "This user is already your friend."
-                    : "A friend request is already pending.";
-                Console.WriteLine($"Friends.razor: Existing friendship status: {existingFriendship.Status}");
+                if (existingFriendship.Status == "accepted")
+                {
+                    searchMessage = "You are already friends with this user";
+                }
+                else if (existingFriendship.Status == "pending")
+                {
+                    if (existingFriendship.User1Id == currentUser.Id)
+                    {
+                        searchMessage = "You have already sent a friend request to this user";
+                    }
+                    else
+                    {
+                        searchMessage = "This user has already sent you a friend request";
+                    }
+                }
+                searchSuccess = false;
                 return;
             }
 
-            var friendship = new Friendship
+            var newFriendship = new Friendship
             {
                 User1Id = currentUser.Id,
                 User2Id = targetUser.Id,
@@ -566,168 +311,25 @@
                 CreatedAt = DateTime.UtcNow
             };
 
-            dbContext.Friendships.Add(friendship);
+            dbContext.Friendships.Add(newFriendship);
             await dbContext.SaveChangesAsync();
-            Console.WriteLine($"Friends.razor: Friend request sent to {targetUser.Username}");
 
-            searchMessage = "Friend request sent successfully!";
+            searchMessage = "Friend request sent successfully";
             searchSuccess = true;
-            friendRequestModel.Username = "";
-            await LoadIncomingRequests();
+            friendRequestModel.Username = string.Empty;
+            showUserInfo = false;
+            targetUserAvatar = string.Empty;
+            targetUserDescription = string.Empty;
         }
         catch (Exception ex)
         {
-            searchMessage = "Error sending friend request.";
+            Console.WriteLine($"Error sending friend request: {ex}");
+            searchMessage = "Error sending friend request";
             searchSuccess = false;
-            Console.WriteLine($"Friends.razor: Error sending friend request: {ex}");
         }
         finally
         {
             isSendingRequest = false;
-            await InvokeAsync(StateHasChanged);
-            Console.WriteLine("Friends.razor: SendFriendRequest completed");
         }
-    }
-
-    private async Task AcceptRequest(int requestId)
-    {
-        if (isProcessingRequest)
-        {
-            Console.WriteLine($"Friends.razor: AcceptRequest already in progress for requestId {requestId}, ignoring");
-            return;
-        }
-
-        Console.WriteLine($"Friends.razor: AcceptRequest started for requestId {requestId}");
-        isProcessingRequest = true;
-        await InvokeAsync(StateHasChanged);
-
-        try
-        {
-            using var dbContext = DbContextFactory.CreateDbContext();
-            var request = await dbContext.Friendships
-                .FirstOrDefaultAsync(f => f.Id == requestId && f.User2Id == currentUser.Id);
-
-            if (request != null)
-            {
-                request.Status = "accepted";
-                await dbContext.SaveChangesAsync();
-                await LoadFriends();
-                await LoadIncomingRequests();
-                searchMessage = "Friend request accepted.";
-                searchSuccess = true;
-                Console.WriteLine($"Friends.razor: Accepted request {requestId}");
-            }
-            else
-            {
-                searchMessage = "Friend request not found.";
-                searchSuccess = false;
-                Console.WriteLine($"Friends.razor: Request {requestId} not found");
-            }
-        }
-        catch (Exception ex)
-        {
-            searchMessage = "Error accepting friend request.";
-            searchSuccess = false;
-            Console.WriteLine($"Friends.razor: Error accepting request: {ex}");
-        }
-        finally
-        {
-            isProcessingRequest = false;
-            await InvokeAsync(StateHasChanged);
-            Console.WriteLine("Friends.razor: AcceptRequest completed");
-        }
-    }
-
-    private async Task DeclineRequest(int requestId)
-    {
-        if (isProcessingRequest)
-        {
-            Console.WriteLine($"Friends.razor: DeclineRequest already in progress for requestId {requestId}, ignoring");
-            return;
-        }
-
-        Console.WriteLine($"Friends.razor: DeclineRequest started for requestId {requestId}");
-        isProcessingRequest = true;
-        await InvokeAsync(StateHasChanged);
-
-        try
-        {
-            using var dbContext = DbContextFactory.CreateDbContext();
-            var request = await dbContext.Friendships
-                .FirstOrDefaultAsync(f => f.Id == requestId && f.User2Id == currentUser.Id);
-
-            if (request != null)
-            {
-                dbContext.Friendships.Remove(request);
-                await dbContext.SaveChangesAsync();
-                await LoadIncomingRequests();
-                searchMessage = "Friend request declined.";
-                searchSuccess = true;
-                Console.WriteLine($"Friends.razor: Declined request {requestId}");
-            }
-            else
-            {
-                searchMessage = "Friend request not found.";
-                searchSuccess = false;
-                Console.WriteLine($"Friends.razor: Request {requestId} not found");
-            }
-        }
-        catch (Exception ex)
-        {
-            searchMessage = "Error declining friend request.";
-            searchSuccess = false;
-            Console.WriteLine($"Friends.razor: Error declining request: {ex}");
-        }
-        finally
-        {
-            isProcessingRequest = false;
-            await InvokeAsync(StateHasChanged);
-            Console.WriteLine("Friends.razor: DeclineRequest completed");
-        }
-    }
-
-    private async Task OnInputChanged(ChangeEventArgs e)
-    {
-        friendRequestModel.Username = e.Value?.ToString() ?? string.Empty;
-        showUserInfo = false;
-        targetUserAvatar = string.Empty;
-        targetUserDescription = string.Empty;
-        searchMessage = null;
-        searchSuccess = false;
-
-        Console.WriteLine($"Friends.razor: Search input changed to '{friendRequestModel.Username}'");
-
-        if (!string.IsNullOrEmpty(friendRequestModel.Username))
-        {
-            using var dbContext = DbContextFactory.CreateDbContext();
-            var userAccount = await dbContext.UserAccounts
-                .AsNoTracking()
-                .Where(u => u.Username == friendRequestModel.Username)
-                .Select(u => new { u.AvatarUrl, u.Description })
-                .FirstOrDefaultAsync();
-
-            if (userAccount != null)
-            {
-                showUserInfo = true;
-                targetUserAvatar = userAccount.AvatarUrl ?? string.Empty;
-                targetUserDescription = userAccount.Description ?? string.Empty;
-                Console.WriteLine($"Friends.razor: Found user '{friendRequestModel.Username}' with avatar '{targetUserAvatar}'");
-            }
-            else
-            {
-                Console.WriteLine($"Friends.razor: User '{friendRequestModel.Username}' not found");
-            }
-        }
-
-        await InvokeAsync(StateHasChanged);
-    }
-
-    public void Dispose()
-    {
-        Console.WriteLine("Friends.razor: Disposing onlineRefreshTimer");
-        onlineRefreshTimer?.Stop();
-        onlineRefreshTimer?.Dispose();
-        onlineRefreshTimer = null;
-        isTimerInitialized = false;
     }
 }
