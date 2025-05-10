@@ -3,9 +3,11 @@
 @using Microsoft.EntityFrameworkCore
 @using YSocial.Components.Models
 @using YSocial.Components.Services
+@using System.Globalization
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDbContextFactory<AppDbContext> DbContextFactory
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Profile</PageTitle>
 
@@ -23,27 +25,34 @@ else if (!isAuthenticated)
 else
 {
     <div class="profile-layout">
-        <div class="profile-header">
-            <img class="profile-avatar" src="@GetAvatarUrl()" alt="Profile Avatar" />
-            <h1 class="username">@user.Username</h1>
-            <p class="description">@(string.IsNullOrEmpty(user.Description) ? "No description yet" : user.Description)</p>
-        </div>
-
-        <div class="settings-button">
-            <img src="/images/gear-icon.png" alt="Settings" @onclick="ToggleSettings" />
-            @if (showSettings)
-            {
-                <div class="settings-dropdown">
-                    <button @onclick="@(() => ShowModal("username"))">Change Username</button>
-                    <button @onclick="OpenAvatarUpload">Change Avatar</button>
-                    <button @onclick="@(() => ShowModal("description"))">Change Description</button>
-                    <button @onclick="@(() => ShowModal("password"))">Change Password</button>
-                    <NavLink href="/logout" class="logout-button">Logout</NavLink>
+        <div class="profile-header d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <img class="profile-avatar" src="@GetAvatarUrl()" alt="Profile Avatar" />
+                <div class="ms-3">
+                    <h1 class="username mb-0 d-inline">@user.Username</h1>
+                    <p class="description mt-1 mb-0">@(string.IsNullOrEmpty(user.Description) ? "No description yet" : user.Description)</p>
                 </div>
-            }
+            </div>
+            <div class="settings-button">
+                <button class="gear-button" @onclick="ToggleSettings" title="Settings">
+                    <img src="/images/gear-icon.png" alt="Settings" class="gear-icon" />
+                </button>
+                <!-- Fallback placeholder for debugging -->
+                @*<div class="gear-icon-placeholder" @onclick="ToggleSettings">⚙️</div>*@
+                @if (showSettings)
+                {
+                    <div class="settings-dropdown">
+                        <button class="dropdown-btn" @onclick="@(() => ShowModal("username"))">Change Username</button>
+                        <button class="dropdown-btn" @onclick="OpenAvatarUpload">Change Avatar</button>
+                        <button class="dropdown-btn" @onclick="@(() => ShowModal("description"))">Change Description</button>
+                        <button class="dropdown-btn" @onclick="@(() => ShowModal("password"))">Change Password</button>
+                        <NavLink class="dropdown-btn" href="/logout">Logout</NavLink>
+                    </div>
+                }
+            </div>
         </div>
 
-        <div class="posts-section">
+        <div class="posts-section mt-4">
             <h3>Recent Posts</h3>
             @if (recentPosts.Any())
             {
@@ -60,7 +69,7 @@ else
                                     <img src="@imageUrl.Trim()" alt="Post Image" class="post-image" />
                                 }
                             }
-                            <span>@post.CreatedAt.ToString("MMM dd, yyyy")</span>
+                            <span>@post.CreatedAt.ToString("MMM dd, yyyy", CultureInfo.InvariantCulture)</span>
                         </div>
                     }
                 </div>
@@ -71,7 +80,180 @@ else
             }
         </div>
     </div>
+
+    <!-- Modal for Username, Description, Password -->
+    @if (showModal)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content bg-dark text-light">
+                    <div class="modal-header">
+                        <h5 class="modal-title">@modalTitle</h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger">@errorMessage</div>
+                        }
+                        <EditForm Model="editModel" OnValidSubmit="SaveChanges">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+                            @if (modalType == "username")
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">New Username</label>
+                                    <InputText @bind-Value="editModel.Username" class="form-control bg-secondary border-dark text-light" />
+                                    <ValidationMessage For="() => editModel.Username" />
+                                </div>
+                            }
+                            else if (modalType == "description")
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">New Description</label>
+                                    <InputTextArea @bind-Value="editModel.Description" class="form-control bg-secondary border-dark text-light" rows="4" />
+                                    <ValidationMessage For="() => editModel.Description" />
+                                </div>
+                            }
+                            else if (modalType == "password")
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">Current Password</label>
+                                    <InputText type="password" @bind-Value="editModel.CurrentPassword" class="form-control bg-secondary border-dark text-light" />
+                                    <ValidationMessage For="() => editModel.CurrentPassword" />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">New Password</label>
+                                    <InputText type="password" @bind-Value="editModel.NewPassword" class="form-control bg-secondary border-dark text-light" />
+                                    <ValidationMessage For="() => editModel.NewPassword" />
+                                </div>
+                            }
+                            <button type="submit" class="btn btn-primary">Save</button>
+                            <button type="button" class="btn btn-secondary ms-2" @onclick="CloseModal">Cancel</button>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Hidden File Input for Avatar Upload -->
+    <InputFile id="avatar-upload" style="display: none;" OnChange="HandleAvatarUpload" accept="image/*" />
 }
+
+<style>
+    .profile-layout {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .profile-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .profile-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    .username {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+
+    .description {
+        font-size: 1rem;
+        color: #6c757d;
+    }
+
+    .gear-button {
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        z-index: 1100; /* High z-index to avoid overlap */
+        pointer-events: auto; /* Ensure clickable */
+    }
+
+    .gear-icon {
+        width: 32px;
+        height: 32px;
+        pointer-events: none; /* Image doesn't handle clicks; button does */
+    }
+
+    .settings-button {
+        position: relative;
+        z-index: 1100; /* Ensure above other elements */
+    }
+
+    .settings-dropdown {
+        position: absolute;
+        top: 40px;
+        right: 0; /* Align to the right of the gear icon */
+        background-color: #2c2c2c;
+        border: 1px solid #444;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        z-index: 1101; /* Above gear button */
+        width: 200px;
+        padding: 10px 0;
+    }
+
+    .dropdown-btn {
+        display: block;
+        width: 100%;
+        padding: 8px 16px;
+        background: none;
+        border: none;
+        color: #fff;
+        text-align: left;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+
+    .dropdown-btn:hover {
+        background-color: #444;
+    }
+
+    .posts-section {
+        margin-top: 20px;
+    }
+
+    .post-item {
+        border-bottom: 1px solid #444;
+        padding: 15px 0;
+    }
+
+    .post-image {
+        max-width: 100%;
+        height: auto;
+        margin-top: 10px;
+    }
+
+    .modal-content {
+        background-color: #2c2c2c;
+    }
+
+    .form-control {
+        background-color: #3a3a3a;
+        color: #fff;
+    }
+
+    .gear-icon-placeholder {
+        width: 32px;
+        height: 32px;
+        font-size: 32px;
+        cursor: pointer;
+        color: #fff;
+        z-index: 1100;
+        pointer-events: auto;
+    }
+</style>
 
 @code {
     private UserAccount user = new();
@@ -79,6 +261,27 @@ else
     private bool isAuthenticated;
     private bool showSettings;
     private List<Post> recentPosts = [];
+    private bool showModal;
+    private string modalType = "";
+    private string modalTitle = "";
+    private EditModel editModel = new();
+    private string? errorMessage;
+
+    public class EditModel
+    {
+        [Required]
+        [StringLength(50, MinimumLength = 3)]
+        public string Username { get; set; } = "";
+
+        public string? Description { get; set; }
+
+        [Required]
+        public string CurrentPassword { get; set; } = "";
+
+        [Required]
+        [StringLength(100, MinimumLength = 6)]
+        public string NewPassword { get; set; } = "";
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -103,7 +306,6 @@ else
                 Console.WriteLine($"Profile.razor: Loading user {username}");
                 using var dbContext = DbContextFactory.CreateDbContext();
                 user = await dbContext.UserAccounts
-                    .AsNoTracking()
                     .Include(u => u.Posts)
                     .FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
 
@@ -120,6 +322,7 @@ else
             Console.WriteLine("Profile.razor: Not authenticated, clearing user data");
             user = new UserAccount();
             recentPosts = [];
+            Navigation.NavigateTo("/login");
         }
 
         isLoading = false;
@@ -134,10 +337,156 @@ else
 
     private string GetAvatarUrl() => string.IsNullOrEmpty(user.AvatarUrl) ? "/images/default-avatar.png" : user.AvatarUrl;
 
-    private void ToggleSettings() => showSettings = !showSettings;
+    private void ToggleSettings()
+    {
+        showSettings = !showSettings;
+        Console.WriteLine($"Profile.razor: ToggleSettings - showSettings = {showSettings}");
+        StateHasChanged();
+    }
 
-    private void OpenAvatarUpload() { }
-    private void ShowModal(string type) { }
+    private void ShowModal(string type)
+    {
+        modalType = type;
+        editModel = new EditModel { Username = user.Username, Description = user.Description };
+        errorMessage = null;
+
+        switch (type)
+        {
+            case "username":
+                modalTitle = "Change Username";
+                break;
+            case "description":
+                modalTitle = "Change Description";
+                break;
+            case "password":
+                modalTitle = "Change Password";
+                break;
+        }
+
+        showModal = true;
+        showSettings = false; // Close dropdown
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        modalType = "";
+        modalTitle = "";
+        editModel = new EditModel();
+        errorMessage = null;
+        StateHasChanged();
+    }
+
+    private async Task OpenAvatarUpload()
+    {
+        showSettings = false; // Close dropdown
+        await JSRuntime.InvokeVoidAsync("document.getElementById('avatar-upload').click");
+    }
+
+    private async Task HandleAvatarUpload(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file == null || file.Size == 0)
+            {
+                errorMessage = "No file selected.";
+                return;
+            }
+
+            if (!file.ContentType.StartsWith("image/"))
+            {
+                errorMessage = "Please upload an image file.";
+                return;
+            }
+
+            if (file.Size > 5 * 1024 * 1024) // 5MB limit
+            {
+                errorMessage = "File size exceeds 5MB.";
+                return;
+            }
+
+            // Read file as base64 (simplified; in production, upload to server)
+            var buffer = new byte[file.Size];
+            await file.OpenReadStream(5 * 1024 * 1024).ReadAsync(buffer);
+            var base64String = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}";
+
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var dbUser = await dbContext.UserAccounts
+                .FirstOrDefaultAsync(u => u.Username == user.Username);
+            if (dbUser == null)
+            {
+                errorMessage = "User not found.";
+                return;
+            }
+
+            dbUser.AvatarUrl = base64String;
+            await dbContext.SaveChangesAsync();
+            user.AvatarUrl = base64String;
+
+            Console.WriteLine("Profile.razor: Avatar updated");
+            await LoadAuthenticationState(); // Refresh claims
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error uploading avatar.";
+            Console.WriteLine($"Profile.razor: Error uploading avatar: {ex}");
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        try
+        {
+            errorMessage = null;
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var dbUser = await dbContext.UserAccounts
+                .FirstOrDefaultAsync(u => u.Username == user.Username);
+            if (dbUser == null)
+            {
+                errorMessage = "User not found.";
+                return;
+            }
+
+            if (modalType == "username")
+            {
+                if (await dbContext.UserAccounts.AnyAsync(u => u.Username == editModel.Username && u.Id != dbUser.Id))
+                {
+                    errorMessage = "Username already taken.";
+                    return;
+                }
+                dbUser.Username = editModel.Username;
+                user.Username = editModel.Username;
+                await ((CustomAuthStateProvider)AuthStateProvider).SignInAsync(dbUser.Username); // Update claims
+            }
+            else if (modalType == "description")
+            {
+                dbUser.Description = editModel.Description;
+                user.Description = editModel.Description;
+            }
+            else if (modalType == "password")
+            {
+                if (dbUser.Password != Cryptography.Sha256Hash(editModel.CurrentPassword))
+                {
+                    errorMessage = "Current password is incorrect.";
+                    return;
+                }
+                dbUser.Password = Cryptography.Sha256Hash(editModel.NewPassword);
+            }
+
+            await dbContext.SaveChangesAsync();
+            Console.WriteLine($"Profile.razor: {modalType} updated");
+            CloseModal();
+            await LoadAuthenticationState(); // Refresh claims
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error updating {modalType}.";
+            Console.WriteLine($"Profile.razor: Error updating {modalType}: {ex}");
+        }
+    }
 
     public void Dispose()
     {

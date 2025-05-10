@@ -1,0 +1,376 @@
+@page "/posts"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YSocial.Components.Models
+@using YSocial.Components.Services
+@using System.Globalization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDbContextFactory<AppDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<div class="row justify-content-center pt-4 pb-4">
+    <div class="col-lg-6">
+        <!-- Create Post Card -->
+        <div class="card bg-dark text-light mb-4" style="max-width: 500px; margin: 20px auto; background-color: #2c2c2c">
+            <div class="card-header" style="background-color: #1a1a1a">
+                <h2 class="mb-0">Create Post</h2>
+            </div>
+            <div class="card-body" style="background-color: #1a1a1a; padding: 15px">
+                @if (isLoading)
+                {
+                    <div class="loading-container text-center">Loading...</div>
+                }
+                else if (!isAuthenticated)
+                {
+                    <div class="unauthorized-container text-center">
+                        <p>Please sign in to view and create posts</p>
+                        <a href="/login" class="btn btn-primary">Sign In</a>
+                    </div>
+                }
+                else
+                {
+                    <!-- Post Creation Form -->
+                    <div class="create-post mb-3">
+                        <EditForm Model="postModel" OnValidSubmit="CreatePost" FormName="CreatePostForm" id="create-post-form">
+                            <DataAnnotationsValidator />
+                            <div class="d-flex align-items-start mb-2">
+                                <img src="@(string.IsNullOrEmpty(currentUser.AvatarUrl) ? "/images/default-avatar.png" : currentUser.AvatarUrl)"
+                                     class="avatar-preview rounded-circle me-2"
+                                     style="width: 32px; height: 32px; object-fit: cover"
+                                     alt="User avatar" />
+                                <div class="flex-grow-1">
+                                    <InputText @bind-Value="postModel.Title"
+                                               class="form-control bg-secondary border-dark text-light mb-2"
+                                               placeholder="Post Title" />
+                                    <ValidationMessage For="() => postModel.Title" />
+                                    <InputTextArea @bind-Value="postModel.Content"
+                                                   class="form-control bg-secondary border-dark text-light mb-2"
+                                                   placeholder="What's on your mind?"
+                                                   rows="2" />
+                                    <ValidationMessage For="() => postModel.Content" />
+                                    <div class="image-upload-placeholder mb-2">
+                                        <button class="btn btn-outline-secondary" disabled>Add Image (Not Implemented)</button>
+                                    </div>
+                                    <button class="btn btn-primary" type="submit" disabled="@isCreatingPost" @onclick:stopPropagation @onclick:preventDefault>
+                                        @(isCreatingPost ? "Posting..." : "Post")
+                                    </button>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(postMessage))
+                            {
+                                <div class="mt-2 @(postSuccess ? "text-success" : "text-danger")">@postMessage</div>
+                            }
+                        </EditForm>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Recent Posts Card -->
+        @if (!isLoading && isAuthenticated)
+        {
+            <div class="card bg-dark text-light" style="max-width: 500px; margin: 20px auto; background-color: #2c2c2c">
+                <div class="card-header" style="background-color: #1a1a1a">
+                    <h2 class="mb-0">Recent Posts</h2>
+                </div>
+                <div class="card-body" style="background-color: #1a1a1a; padding: 15px">
+                    <div class="post-feed">
+                        @if (isLoadingPosts)
+                        {
+                            <p>Loading posts...</p>
+                        }
+                        else if (posts.Any())
+                        {
+                            @foreach (var post in posts)
+                            {
+                                <div class="post-item mb-4 p-3 border-bottom">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <img src="@(string.IsNullOrEmpty(post.User.AvatarUrl) ? "/images/default-avatar.png" : post.User.AvatarUrl)"
+                                             class="avatar-preview rounded-circle me-2"
+                                             style="width: 32px; height: 32px; object-fit: cover"
+                                             alt="User avatar" />
+                                        <span class="fw-bold">@post.User.Username</span>
+                                        <span class="text-muted small ms-2">@post.CreatedAt.ToString("MMM dd, yyyy HH:mm", CultureInfo.InvariantCulture)</span>
+                                    </div>
+                                    <h5>@post.Title</h5>
+                                    <p>@post.Content</p>
+                                    @if (!string.IsNullOrEmpty(post.ImageUrls))
+                                    {
+                                        <img src="@post.ImageUrls" class="post-image img-fluid rounded" alt="Post image" />
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <p>No posts yet. Create one above!</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .create-post .form-control, .create-post .form-control:focus {
+        background-color: #2c2c2c;
+        border: 1px solid #444;
+        color: #fff;
+    }
+
+    .create-post .btn-primary {
+        background-color: #967bb6;
+        border: none;
+        border-radius: 5px;
+    }
+
+    .post-item {
+        border-bottom: 1px solid #444;
+        padding: 20px;
+    }
+
+    .post-image {
+        max-width: 100%;
+        max-height: 400px;
+        object-fit: cover;
+    }
+
+    .loading-container, .unauthorized-container {
+        padding: 20px;
+        text-align: center;
+    }
+</style>
+
+@code {
+    [SupplyParameterFromForm]
+    private PostModel postModel { get; set; } = new();
+    private string? postMessage;
+    private bool postSuccess;
+    private bool isCreatingPost;
+    private bool isLoading = true;
+    private bool isAuthenticated;
+    private bool isLoadingPosts;
+    private List<Post> posts = [];
+    private UserAccount currentUser = new();
+    private bool isComponentMounted;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Console.WriteLine("Posts.razor: OnInitializedAsync started");
+        isComponentMounted = true;
+        try
+        {
+            Navigation.LocationChanged += HandleLocationChanged;
+            await LoadAuthenticationState();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Posts.razor: OnInitializedAsync error: {ex}");
+            postMessage = "Error loading posts page.";
+            postSuccess = false;
+            isLoading = false;
+            isComponentMounted = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("preventDoubleSubmit", "create-post-form");
+                Console.WriteLine("Posts.razor: preventDoubleSubmit initialized for create-post-form");
+
+                // Add SignalR reconnection script
+                await JSRuntime.InvokeVoidAsync("eval", @"
+                    window.blazorReconnect = function() {
+                        console.log('Attempting SignalR reconnection...');
+                        if (Blazor) {
+                            Blazor.reconnect().catch(err => console.error('Reconnection failed:', err));
+                        }
+                    };
+                    setInterval(() => {
+                        if (document.hidden) return;
+                        window.blazorReconnect();
+                    }, 5000);
+                ");
+                Console.WriteLine("Posts.razor: SignalR reconnection script initialized");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Posts.razor: Error in OnAfterRenderAsync: {ex}");
+            }
+        }
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        Console.WriteLine($"Posts.razor: Location changed to {e.Location}");
+        if (!e.Location.Contains("/posts"))
+        {
+            Console.WriteLine("Posts.razor: Component unmounted due to navigation");
+            isComponentMounted = false;
+        }
+    }
+
+    private async Task LoadAuthenticationState()
+    {
+        Console.WriteLine("Posts.razor: LoadAuthenticationState started");
+        isLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+            Console.WriteLine($"Posts.razor: isAuthenticated = {isAuthenticated}");
+
+            if (isAuthenticated)
+            {
+                var username = authState.User.Identity?.Name;
+                if (!string.IsNullOrEmpty(username))
+                {
+                    using var dbContext = DbContextFactory.CreateDbContext();
+                    currentUser = await dbContext.UserAccounts
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
+
+                    if (currentUser.Id == 0)
+                    {
+                        Console.WriteLine("Posts.razor: Current user not found");
+                        isAuthenticated = false;
+                        Navigation.NavigateTo("/login");
+                        return;
+                    }
+
+                    await LoadPosts();
+                }
+                else
+                {
+                    Console.WriteLine("Posts.razor: No username in auth state");
+                    isAuthenticated = false;
+                    Navigation.NavigateTo("/login");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Posts.razor: Not authenticated");
+                Navigation.NavigateTo("/login");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Posts.razor: LoadAuthenticationState error: {ex}");
+            postMessage = "Error loading authentication state.";
+            postSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+            Console.WriteLine("Posts.razor: LoadAuthenticationState completed");
+        }
+    }
+
+    private async Task LoadPosts()
+    {
+        Console.WriteLine("Posts.razor: LoadPosts started");
+        try
+        {
+            isLoadingPosts = true;
+            await InvokeAsync(StateHasChanged);
+
+            using var dbContext = DbContextFactory.CreateDbContext();
+            posts = await dbContext.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Where(p => p.UserId == currentUser.Id) // Show only current user's posts
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+            Console.WriteLine($"Posts.razor: Loaded {posts.Count} posts");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Posts.razor: Error loading posts: {ex}");
+            postMessage = "Error loading posts.";
+            postSuccess = false;
+        }
+        finally
+        {
+            isLoadingPosts = false;
+            await InvokeAsync(StateHasChanged);
+            Console.WriteLine("Posts.razor: LoadPosts completed");
+        }
+    }
+
+    private async Task CreatePost()
+    {
+        if (isCreatingPost)
+        {
+            Console.WriteLine("Posts.razor: CreatePost already in progress, ignoring");
+            return;
+        }
+
+        Console.WriteLine("Posts.razor: CreatePost started");
+        Console.WriteLine("Posts.razor: CreatePost button clicked");
+        isCreatingPost = true;
+        postMessage = null;
+        postSuccess = false;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var post = new Post
+            {
+                Title = postModel.Title,
+                Content = postModel.Content,
+                UserId = currentUser.Id,
+                CreatedAt = DateTime.UtcNow
+                // ImageUrls will remain null since image upload is not implemented
+            };
+
+            dbContext.Posts.Add(post);
+            await dbContext.SaveChangesAsync();
+            Console.WriteLine($"Posts.razor: Post created with ID {post.Id}");
+
+            postMessage = "Post created successfully!";
+            postSuccess = true;
+            postModel = new PostModel(); // Reset form
+            await LoadPosts(); // Refresh post feed
+        }
+        catch (Exception ex)
+        {
+            postMessage = "Error creating post.";
+            postSuccess = false;
+            Console.WriteLine($"Posts.razor: Error creating post: {ex}");
+        }
+        finally
+        {
+            isCreatingPost = false;
+            await InvokeAsync(StateHasChanged);
+            Console.WriteLine("Posts.razor: CreatePost completed");
+            Console.WriteLine($"Posts.razor: Post-CreatePost state: isComponentMounted = {isComponentMounted}, URL = {Navigation.Uri}");
+        }
+    }
+
+    public void Dispose()
+    {
+        Console.WriteLine($"Posts.razor: Dispose called, current URL: {Navigation.Uri}, isComponentMounted = {isComponentMounted}");
+        Navigation.LocationChanged -= HandleLocationChanged;
+        if (!Navigation.Uri.Contains("/posts"))
+        {
+            Console.WriteLine("Posts.razor: Component fully disposed (navigation confirmed)");
+            isComponentMounted = false;
+        }
+        else
+        {
+            Console.WriteLine("Posts.razor: Skipped full disposal (still on /posts)");
+        }
+    }
+}

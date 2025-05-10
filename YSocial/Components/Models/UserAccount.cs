@@ -1,8 +1,6 @@
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-
-namespace YSocial.Components.Models;
+using YSocial.Components.Models;
 
 [Table("users")]
 public class UserAccount
@@ -26,5 +24,15 @@ public class UserAccount
     [Column("description")]
     public string? Description { get; set; }
 
+    [Column("is_online")]
+    public bool IsOnline { get; set; } = false;
+
+    [Column("last_seen")]
+    public DateTime LastSeen { get; set; } = DateTime.UtcNow;
+
     public virtual List<Post> Posts { get; set; } = new();
+
+    // Navigation properties for friendships
+    public virtual List<Friendship> FriendshipsAsUser1 { get; set; } = new();
+    public virtual List<Friendship> FriendshipsAsUser2 { get; set; } = new();
 }

@@ -7,16 +7,17 @@ using Microsoft.EntityFrameworkCore;
 using YSocial.Components.Models;
 
 namespace YSocial.Components.Services;
-
 public class CustomAuthStateProvider : ServerAuthenticationStateProvider
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+    private readonly AuthService _authService;
 
-    public CustomAuthStateProvider(IHttpContextAccessor httpContextAccessor, IDbContextFactory<AppDbContext> dbContextFactory)
+    public CustomAuthStateProvider(IHttpContextAccessor httpContextAccessor, IDbContextFactory<AppDbContext> dbContextFactory, AuthService authService)
     {
         _httpContextAccessor = httpContextAccessor;
         _dbContextFactory = dbContextFactory;
+        _authService = authService;
     }
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
@@ -38,6 +39,9 @@ public class CustomAuthStateProvider : ServerAuthenticationStateProvider
             Console.WriteLine($"GetAuthenticationStateAsync: User {username} not found");
             return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
         }
+
+        // Update last seen
+        await _authService.UpdateLastSeenAsync(username);
 
         var claims = new[]
         {
@@ -92,9 +96,13 @@ public class CustomAuthStateProvider : ServerAuthenticationStateProvider
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext != null)
         {
-            // Clear the authentication cookie
+            var username = httpContext.User?.Identity?.Name;
+            if (!string.IsNullOrEmpty(username))
+            {
+                await _authService.LogoutAsync(username);
+            }
+
             await httpContext.SignOutAsync("cookie");
-            // Ensure the cookie is removed from the response
             httpContext.Response.Cookies.Delete("YSocialAuth");
             Console.WriteLine("SignOutAsync: User signed out, cookie cleared");
         }
@@ -103,7 +111,6 @@ public class CustomAuthStateProvider : ServerAuthenticationStateProvider
             Console.WriteLine("SignOutAsync: HttpContext is null");
         }
 
-        // Notify all components of the new empty authentication state
         var emptyState = new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
         NotifyAuthenticationStateChanged(Task.FromResult(emptyState));
     }

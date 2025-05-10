@@ -94,82 +94,80 @@
         }
     }
 
-    private async Task Authenticate()
+  private async Task Authenticate()
+{
+    if (isSubmitting)
     {
-        if (isSubmitting)
+        Console.WriteLine("Authenticate: Already submitting, ignoring duplicate call");
+        return;
+    }
+
+    isSubmitting = true;
+    shouldNavigateToMainPage = false;
+    StateHasChanged();
+
+    try
+    {
+        Console.WriteLine("Authenticate started");
+        errorMessage = null;
+        showUserInfo = false;
+
+        using var dbContext = DbContextFactory.CreateDbContext();
+        var userAccount = await dbContext.UserAccounts
+            .AsNoTracking()
+            .Select(u => new { u.Username, u.Password, u.AvatarUrl, u.Description })
+            .FirstOrDefaultAsync(u => u.Username == loginModel.Username);
+
+        if (userAccount == null)
         {
-            Console.WriteLine("Authenticate: Already submitting, ignoring duplicate call");
+            errorMessage = "Invalid username or password";
+            Console.WriteLine("User not found");
             return;
         }
 
-        isSubmitting = true;
-        shouldNavigateToMainPage = false;
+        Console.WriteLine("User found, showing user info");
+        showUserInfo = true;
+        currentUserAvatar = userAccount.AvatarUrl ?? string.Empty;
+        currentUserDescription = userAccount.Description ?? string.Empty;
         StateHasChanged();
 
-        try
+        if (userAccount.Password != Cryptography.Sha256Hash(loginModel.Password))
         {
-            Console.WriteLine("Authenticate started");
-            errorMessage = null;
-            showUserInfo = false;
-
-            using var dbContext = DbContextFactory.CreateDbContext();
-            var userAccount = await dbContext.UserAccounts
-                .AsNoTracking()
-                .Select(u => new { u.Username, u.Password, u.AvatarUrl, u.Description })
-                .FirstOrDefaultAsync(u => u.Username == loginModel.Username);
-
-            if (userAccount == null)
-            {
-                errorMessage = "Invalid username or password";
-                Console.WriteLine("User not found");
-                return;
-            }
-
-            Console.WriteLine("User found, showing user info");
-            showUserInfo = true;
-            currentUserAvatar = userAccount.AvatarUrl ?? string.Empty;
-            currentUserDescription = userAccount.Description ?? string.Empty;
-            StateHasChanged();
-
-            if (userAccount.Password != Cryptography.Sha256Hash(loginModel.Password))
-            {
-                errorMessage = "Invalid password";
-                Console.WriteLine("Invalid password");
-                return;
-            }
-
-            Console.WriteLine("Password valid, calling AuthService");
-            var authResult = await AuthService.LoginAsync(loginModel.Username, loginModel.Password);
-
-            if (authResult)
-            {
-                Console.WriteLine("AuthService success, signing in");
-                await ((CustomAuthStateProvider)AuthStateProvider).SignInAsync(loginModel.Username);
-                Console.WriteLine("SignInAsync completed, waiting for state propagation");
-
-                // Delay to ensure authentication state propagation
-                await Task.Delay(1000);
-
-                Console.WriteLine("Setting flag to navigate to main page");
-                shouldNavigateToMainPage = true;
-            }
-            else
-            {
-                errorMessage = "Login failed";
-                Console.WriteLine("AuthService failed");
-            }
+            errorMessage = "Invalid password";
+            Console.WriteLine("Invalid password");
+            return;
         }
-        catch (Exception ex)
+
+        Console.WriteLine("Password valid, calling AuthService");
+        var authResult = await AuthService.LoginAsync(loginModel.Username, loginModel.Password);
+
+        if (authResult)
         {
-            errorMessage = "An error occurred during login. Please try again.";
-            Console.WriteLine($"Error during login: {ex}");
+            Console.WriteLine("AuthService success, signing in");
+            await ((CustomAuthStateProvider)AuthStateProvider).SignInAsync(loginModel.Username);
+            Console.WriteLine("SignInAsync completed, waiting for state propagation");
+
+            await Task.Delay(1000);
+            Console.WriteLine("Setting flag to navigate to main page");
+            shouldNavigateToMainPage = true;
         }
-        finally
+        else
         {
-            isSubmitting = false;
-            StateHasChanged();
+            errorMessage = "Login failed";
+            Console.WriteLine("AuthService failed");
         }
     }
+    catch (Exception ex)
+    {
+        errorMessage = "An error occurred during login. Please try again.";
+        Console.WriteLine($"Error during login: {ex}");
+    }
+    finally
+    {
+        isSubmitting = false;
+        StateHasChanged();
+    }
+}
 
     private async Task OnUsernameChanged(ChangeEventArgs e)
     {
