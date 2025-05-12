@@ -155,10 +155,11 @@ else
     }
 
     .profile-avatar {
-        width: 80px;
-        height: 80px;
+        width: 120px; /* БЫЛО 80px */ /* увеличено */
+        height: 120px; /* БЫЛО 80px */ /* увеличено */
         border-radius: 50%;
         object-fit: cover;
+        border: 2px solid #967bb6;
     }
 
     .username {
@@ -170,20 +171,35 @@ else
         font-size: 1rem;
         color: #6c757d;
     }
+    
+    .profile-avatar {
+        width: 120px; /* БЫЛО 80px */ /* увеличено */
+        height: 120px; /* БЫЛО 80px */ /* увеличено */
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #967bb6;
+    }
 
+    /* Увеличенный размер кнопки настроек */
     .gear-button {
         background: none;
         border: none;
-        padding: 0;
+        padding: 16px; /* БЫЛО 8px */ /* увеличено */
         cursor: pointer;
-        z-index: 1100; /* High z-index to avoid overlap */
-        pointer-events: auto; /* Ensure clickable */
+        transition: transform 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .gear-button:hover {
+        transform: rotate(45deg);
     }
 
     .gear-icon {
-        width: 32px;
-        height: 32px;
-        pointer-events: none; /* Image doesn't handle clicks; button does */
+        width: 40px; /* БЫЛО 24px */ /* увеличено */
+        height: 40px; /* БЫЛО 24px */ /* увеличено */
+        /* pointer-events: none;  УДАЛЕНО для кликабельности */
     }
 
     .settings-button {
