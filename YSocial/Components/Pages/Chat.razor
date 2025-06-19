@@ -61,24 +61,19 @@
                         @if (selectedFriend != null)
                         {
                             <div class="chat-area">
-                            <div class="messages-container" @ref="messagesContainer">
-                                @foreach (var message in messages)
-                                {
-                                    <div class="message @(message.SenderId == currentUser.Id ? "sent" : "received")">
-                                        <div class="message-content">
-                                            @message.Content
+                                <div class="messages-container" @ref="messagesContainer">
+                                    @foreach (var message in messages)
+                                    {
+                                        <div class="message @(message.SenderId == currentUser.Id ? "sent" : "received")">
+                                            <div class="message-content">
+                                                @message.Content
+                                            </div>
+                                            <div class="message-time small text-muted">
+                                                @message.Timestamp.ToString("HH:mm")
+                                            </div>
                                         </div>
-                                        <div class="message-time small text-muted">
-                                            @message.Timestamp.ToString("HH:mm")
-                                        </div>
-                                        <div class="message-time small text-muted">
-                                            @message.Timestamp.ToString("HH:mm")
-                                        </div>
-                                        
-                                    </div>
-                                }
-                            </div>
-                            
+                                    }
+                                </div>
 
                                 <div class="message-input mt-3">
                                     <div class="input-group">
@@ -177,6 +172,7 @@
         border-color: #845aa6;
     }
 </style>
+
 @code {
     private bool isLoading = true;
     private bool isAuthenticated;

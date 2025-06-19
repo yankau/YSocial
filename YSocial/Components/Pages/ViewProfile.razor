@@ -1,4 +1,4 @@
-@page "/profile"
+@page "/viewprofile/{Username}"
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
@@ -9,17 +9,17 @@
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 
-<PageTitle>Профиль</PageTitle>
+<PageTitle>Профиль @Username</PageTitle>
 
 @if (isLoading)
 {
     <div class="loading-container">Загрузка профиля...</div>
 }
-else if (!isAuthenticated)
+else if (user == null)
 {
     <div class="unauthorized-container">
-        <p>Пожалуйста, войдите в систему, чтобы просмотреть профиль</p>
-        <a href="/login" class="login-button">Войти</a>
+        <p>Пользователь не найден</p>
+        <a href="/friends/list" class="login-button">Вернуться к списку друзей</a>
     </div>
 }
 else
@@ -32,11 +32,6 @@ else
                     <h1 class="username mb-0 d-inline">@user.Username</h1>
                     <p class="description mt-1 mb-0">@(string.IsNullOrEmpty(user.Description) ? "Описания пока нет" : user.Description)</p>
                 </div>
-            </div>
-            <div class="settings-button">
-                <button class="btn edit-button" @onclick="NavigateToSettingsAsync" title="Открыть настройки">
-                    Edit
-                </button>
             </div>
         </div>
 
@@ -68,96 +63,47 @@ else
             }
         </div>
     </div>
-
-    @* Отладочный вывод *@
-    @if (debugMessage != null)
-    {
-        <div style="color: red; position: fixed; bottom: 10px; left: 10px;">@debugMessage</div>
-    }
 }
 
 @code {
-    private UserAccount user = new();
+    [Parameter]
+    public string Username { get; set; } = string.Empty;
+
+    private UserAccount? user;
     private bool isLoading = true;
-    private bool isAuthenticated;
     private List<Post> recentPosts = [];
-    private string? debugMessage;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadAuthenticationState();
-        ((CustomAuthStateProvider)AuthStateProvider).AuthenticationStateChanged += OnAuthenticationStateChanged;
+        await LoadUserData();
     }
 
-    private async Task LoadAuthenticationState()
+    private async Task LoadUserData()
     {
         isLoading = true;
         StateHasChanged();
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        var isAuthenticated = authState.User?.Identity?.IsAuthenticated ?? false;
 
-        if (isAuthenticated)
+        if (isAuthenticated && !string.IsNullOrEmpty(Username))
         {
-            var username = authState.User.Identity?.Name;
-            if (!string.IsNullOrEmpty(username))
+            using var dbContext = DbContextFactory.CreateDbContext();
+            user = await dbContext.UserAccounts
+                .Include(u => u.Posts)
+                .FirstOrDefaultAsync(u => u.Username == Username);
+
+            if (user != null)
             {
-                using var dbContext = DbContextFactory.CreateDbContext();
-                user = await dbContext.UserAccounts
-                    .Include(u => u.Posts)
-                    .FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
                 recentPosts = user.Posts?.ToList() ?? [];
             }
-            else
-            {
-                isAuthenticated = false;
-            }
-        }
-        else
-        {
-            user = new UserAccount();
-            recentPosts = [];
-            Navigation.NavigateTo("/login");
         }
 
         isLoading = false;
         StateHasChanged();
     }
 
-    private async void OnAuthenticationStateChanged(Task<AuthenticationState> task)
-    {
-        await LoadAuthenticationState();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private string GetAvatarUrl() => string.IsNullOrEmpty(user.AvatarUrl) ? "/images/default-avatar.png" : user.AvatarUrl;
-
-    private async Task NavigateToSettingsAsync()
-    {
-        debugMessage = "NavigateToSettingsAsync called";
-        StateHasChanged();
-
-        Console.WriteLine("NavigateToSettingsAsync: Starting navigation");
-        try
-        {
-            // Короткая задержка для обеспечения корректной навигации
-            await Task.Delay(100);
-            Console.WriteLine("NavigateToSettingsAsync: Navigating to /settings");
-            Navigation.NavigateTo("/settings");
-            StateHasChanged(); // Принудительное обновление UI
-        }
-        catch (Exception ex)
-        {
-            debugMessage = $"Ошибка навигации: {ex.Message}";
-            Console.WriteLine($"NavigateToSettingsAsync: Error - {ex}");
-            StateHasChanged();
-        }
-    }
-
-    public void Dispose()
-    {
-        ((CustomAuthStateProvider)AuthStateProvider).AuthenticationStateChanged -= OnAuthenticationStateChanged;
-    }
+    private string GetAvatarUrl() => string.IsNullOrEmpty(user?.AvatarUrl) ? "/images/default-avatar.png" : user.AvatarUrl;
 }
 
 <style>
@@ -189,28 +135,6 @@ else
     .description {
         font-size: 1rem;
         color: #6c757d;
-    }
-
-    .edit-button {
-        background-color: #967bb6;
-        border-color: #967bb6;
-        color: white;
-        padding: 8px 16px;
-        cursor: pointer;
-        border-radius: 5px;
-        transition: transform 0.2s;
-        pointer-events: auto;
-        z-index: 10;
-    }
-
-    .edit-button:hover {
-        transform: scale(1.1);
-        background-color: #845aa6;
-        border-color: #845aa6;
-    }
-
-    .settings-button {
-        position: relative;
     }
 
     .posts-section {

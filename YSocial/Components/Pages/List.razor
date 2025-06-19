@@ -35,7 +35,8 @@
                     <div class="friends-list">
                         @foreach (var friend in friends)
                         {
-                            <div class="friend-item d-flex align-items-center justify-content-between p-2 mb-2 bg-secondary rounded">
+                            <div class="friend-item d-flex align-items-center justify-content-between p-2 mb-2 bg-secondary rounded"
+                                 @onclick="() => NavigateToFriendProfile(friend.Username)">
                                 <div class="d-flex align-items-center">
                                     <img src="@(string.IsNullOrEmpty(friend.AvatarUrl) ? "/images/default-avatar.png" : friend.AvatarUrl)"
                                          class="avatar-preview rounded-circle me-2"
@@ -93,7 +94,6 @@
                     Navigation.NavigateTo("/login");
                     return;
                 }
-                
 
                 await LoadFriends();
             }
@@ -155,4 +155,9 @@
             Console.WriteLine($"Error removing friend: {ex}");
         }
     }
+
+    private void NavigateToFriendProfile(string username)
+    {
+        Navigation.NavigateTo($"/viewprofile/{Uri.EscapeDataString(username)}");
     }
+}

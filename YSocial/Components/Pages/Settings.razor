@@ -1,0 +1,260 @@
+@page "/settings"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YSocial.Components.Models
+@using YSocial.Components.Services
+@using System.Globalization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDbContextFactory<AppDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<PageTitle>Настройки</PageTitle>
+
+@if (isLoading)
+{
+    <div class="loading-container">Загрузка настроек...</div>
+}
+else
+{
+    <div class="row justify-content-center pt-4 pb-4">
+        <div class="col-lg-4">
+            <EditForm Model="editModel" OnValidSubmit="SaveChanges" FormName="SettingsForm" id="settings-form">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="card bg-dark text-light" style="width: 450px; margin: 0 auto; background-color: #2c2c2c">
+                    <div class="card-header" style="background-color: #1a1a1a">
+                        <h2 class="mb-0">Настройки</h2>
+                        <button class="btn-close" @onclick="NavigateBackAsync">×</button>
+                    </div>
+
+                    <div class="card-body" style="background-color: #1a1a1a">
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger">@errorMessage</div>
+                        }
+                        <h6>Настройки профиля</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Имя пользователя</label>
+                            <InputText @bind-Value="editModel.Username" class="form-control bg-secondary border-dark text-light" />
+                            <ValidationMessage For="() => editModel.Username" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Описание</label>
+                            <InputTextArea @bind-Value="editModel.Description" class="form-control bg-secondary border-dark text-light" rows="4" />
+                            <ValidationMessage For="() => editModel.Description" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Аватар</label>
+                            <InputFile id="avatar-upload" OnChange="HandleAvatarUpload" accept="image/*" class="form-control bg-secondary border-dark text-light" />
+                        </div>
+                        <h6>Настройки безопасности</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Текущий пароль</label>
+                            <InputText type="password" @bind-Value="editModel.CurrentPassword" class="form-control bg-secondary border-dark text-light" />
+                            <ValidationMessage For="() => editModel.CurrentPassword" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Новый пароль</label>
+                            <InputText type="password" @bind-Value="editModel.NewPassword" class="form-control bg-secondary border-dark text-light" />
+                            <ValidationMessage For="() => editModel.NewPassword" />
+                        </div>
+                    </div>
+                    <div class="card-footer" style="background-color: #1a1a1a; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <button type="submit" class="btn btn-sm" style="background-color: #967bb6; color: white; border: none">Сохранить изменения</button>
+                            <button type="button" class="btn btn-sm ms-2" style="background-color: #6c757d; color: white; border: none" @onclick="NavigateBackAsync">Отмена</button>
+                        </div>
+                        <NavLink class="btn btn-sm" style="background-color: #dc3545; color: white; border: none" href="/logout">Выход</NavLink>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private UserAccount user = new();
+    private bool isLoading = true;
+    private EditModel editModel = new();
+    private string? errorMessage;
+
+    public class EditModel
+    {
+        [StringLength(50, MinimumLength = 3)]
+        public string Username { get; set; } = "";
+
+        public string? Description { get; set; }
+
+        public string CurrentPassword { get; set; } = "";
+
+        public string NewPassword { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserData();
+    }
+
+    private async Task LoadUserData()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var isAuthenticated = authState.User?.Identity?.IsAuthenticated ?? false;
+        if (isAuthenticated)
+        {
+            var username = authState.User?.Identity?.Name;
+            if (!string.IsNullOrEmpty(username))
+            {
+                using var dbContext = DbContextFactory.CreateDbContext();
+                user = await dbContext.UserAccounts
+                    .FirstOrDefaultAsync(u => u.Username == username) ?? new UserAccount();
+                editModel = new EditModel 
+                { 
+                    Username = user.Username, 
+                    Description = user.Description 
+                };
+            }
+            else
+            {
+                await NavigateToLoginAsync();
+            }
+        }
+        else
+        {
+            await NavigateToLoginAsync();
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task NavigateBackAsync()
+    {
+        await Task.Delay(100); // Задержка для синхронизации состояния
+        Navigation.NavigateTo("/profile");
+    }
+
+    private async Task NavigateToLoginAsync()
+    {
+        await Task.Delay(100); // Задержка для синхронизации состояния
+        Navigation.NavigateTo("/login");
+    }
+
+    private async Task HandleAvatarUpload(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file == null || file.Size == 0)
+            {
+                errorMessage = "Файл не выбран.";
+                return;
+            }
+
+            if (!file.ContentType.StartsWith("image/"))
+            {
+                errorMessage = "Пожалуйста, загрузите файл изображения.";
+                return;
+            }
+
+            if (file.Size > 5 * 1024 * 1024) // 5MB limit
+            {
+                errorMessage = "Размер файла превышает 5MB.";
+                return;
+            }
+
+            var buffer = new byte[file.Size];
+            await file.OpenReadStream(5 * 1024 * 1024).ReadAsync(buffer);
+            var base64String = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}";
+
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var dbUser = await dbContext.UserAccounts.FirstOrDefaultAsync(u => u.Username == user.Username);
+            if (dbUser == null)
+            {
+                errorMessage = "Пользователь не найден.";
+                return;
+            }
+
+            dbUser.AvatarUrl = base64String;
+            await dbContext.SaveChangesAsync();
+            user.AvatarUrl = base64String;
+            await LoadUserData();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Ошибка загрузки аватара.";
+            Console.WriteLine($"HandleAvatarUpload error: {ex}");
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        try
+        {
+            errorMessage = null;
+            using var dbContext = DbContextFactory.CreateDbContext();
+            var dbUser = await dbContext.UserAccounts.FirstOrDefaultAsync(u => u.Username == user.Username);
+            if (dbUser == null)
+            {
+                errorMessage = "Пользователь не найден.";
+                return;
+            }
+
+            // Проверка и обновление имени пользователя
+            if (!string.IsNullOrEmpty(editModel.Username) && editModel.Username != user.Username)
+            {
+                if (await dbContext.UserAccounts.AnyAsync(u => u.Username == editModel.Username && u.Id != dbUser.Id))
+                {
+                    errorMessage = "Имя пользователя уже занято.";
+                    return;
+                }
+                dbUser.Username = editModel.Username;
+                user.Username = editModel.Username;
+                await ((CustomAuthStateProvider)AuthStateProvider).SignInAsync(dbUser.Username);
+            }
+
+            // Обновление описания (опционально)
+            if (editModel.Description != user.Description)
+            {
+                dbUser.Description = editModel.Description;
+                user.Description = editModel.Description;
+            }
+
+            // Проверка и обновление пароля только если оба поля заполнены
+            if (!string.IsNullOrEmpty(editModel.CurrentPassword) && !string.IsNullOrEmpty(editModel.NewPassword))
+            {
+                if (string.IsNullOrWhiteSpace(editModel.CurrentPassword) || string.IsNullOrWhiteSpace(editModel.NewPassword))
+                {
+                    errorMessage = "Оба поля пароля должны быть заполнены.";
+                    return;
+                }
+                if (dbUser.Password != Cryptography.Sha256Hash(editModel.CurrentPassword))
+                {
+                    errorMessage = "Текущий пароль неверный.";
+                    return;
+                }
+                if (editModel.NewPassword.Length < 6)
+                {
+                    errorMessage = "Новый пароль должен содержать минимум 6 символов.";
+                    return;
+                }
+                dbUser.Password = Cryptography.Sha256Hash(editModel.NewPassword);
+            }
+
+            await dbContext.SaveChangesAsync();
+            Console.WriteLine("Settings.razor: Настройки обновлены");
+            await NavigateBackAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка обновления настроек: {ex.Message}";
+            Console.WriteLine($"SaveChanges error: {ex}");
+        }
+    }
+}
